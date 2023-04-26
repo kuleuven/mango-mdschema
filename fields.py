@@ -1,5 +1,12 @@
-class Field:
-    
+import logging
+from datetime import datetime, date, time
+
+from irods.meta import iRODSMeta
+import validators
+
+from helpers import check_metadata
+
+class Field: 
     def __init__(self, name: str, content: dict):
         """Class representing a field of a metadata schema.
 
@@ -14,6 +21,7 @@ class Field:
             default (any, optional): The default value for the field, if it is required.
             repeatable (bool): Whether the field is repeatable.
             flattened_name (str): The flattened name of the field, for the AVU.
+            description (str): Description of the criteria for the field.
 
         Raises:
             KeyError: When the contents don't include a type.
@@ -26,6 +34,13 @@ class Field:
         self.required = 'required' in content and content['required']
         self.default = content['default'] if 'default' in content else None            
         self.repeatable = 'repeatable' in content and content['repeatable']
+    
+    def start_description(self):
+        def_message = f" Default: {self.default}." if self.required else ""
+        self.description =  f"""Type: {self.type}.
+                Required: {self.required}.{def_message}
+                Repeatable: {self.repeatable}.
+                """
             
     def flatten_name(self, prefix: str):
         """Flatten the name for the AVU.
@@ -35,7 +50,12 @@ class Field:
         """
         self.flattened_name = f"{prefix}.{self.name}"
         
-            
+    def create_avu(self, value, index, verbose):
+        raise NotImplementedError
+        
+    def __str__(self):
+        return self.description
+    
     @staticmethod
     def choose_class(name: str, content: dict):
         """Identify the type of field.
@@ -94,10 +114,142 @@ class SimpleField(Field):
             self.type = content['type']
         
         if self.type in ['integer', 'float']:
-            if 'minimum' in content:
-                self.minimum = content['minimum']
-            if 'maximum' in content:
-                self.maximum = content['maximum']    
+            self.minimum = content['minimum'] if 'minimum' in content else None
+            self.maximum = content['maximum'] if 'maximum' in content else None
+            
+        extra = ""
+        if self.type in ['integer', 'float']:
+            if self.minimum is not None and self.maximum is not None:
+                extra = f"{self.type} between {self.minimum} and {self.maximum}."
+            elif self.minimum is not None:
+                extra = f"{self.type} larger than {self.minimum}."
+            elif self.maximum is not None:
+                extra = f"{self.type} smaller than {self.maximum}."
+        
+        self.start_description()
+        self.description = "\n".join([self.description, extra])
+    
+    def _validate_number(self, value: int | float | str) -> str:
+        """Validate the value of an integer or float.
+
+        Args:
+            value (int | float | str): Value provided for a field that is an integer or a float.
+
+        Returns:
+            str: The final value if validated, else False.
+        """
+        if self.type == 'integer':
+            try:
+                value = int(value)
+            except TypeError:
+                return False
+        elif self.type == 'float':
+            try:
+                value = float(value)
+            except TypeError:
+                return False
+        return str(value) if validators.between(value, min_val = self.minimum, max_val = self.maximum) else False
+    
+    def _validate_datetime(self, value : date | time | datetime | str) -> str:
+        """Validate the value of a date, time or datetime field.
+        
+        A date can be provided as `datetime.date` or something that can be converted to it via
+        `datetime.date.fromisoformat()` or `datetime.date.fromtimestamp()`.
+        A datetime can be provided as `datetime.datetime` or something that can be converted to it via
+        `datetime.datetime.fromisoformat()` or `datetime.datetime.fromtimestamp()`.
+        A date can be provided as `datetime.time` or something that can be converted to it via
+        `datetime.time.fromisoformat()`.
+
+        Args:
+            value (date | time | datetime | str): The value of an AVU that should be date, time, or datetime.
+
+        Returns:
+            str: The date, time or datetime in ISO format, or False if the input format is not valid.
+        """
+        if self.type == 'date':
+            tries = 2
+            if type(value) == str:
+                if tries == 2:
+                    try:
+                        value = date.fromtimestamp(value)
+                    except:
+                        tries -= 1
+                if tries == 1:
+                    try:
+                        value = date.fromisoformat(value)
+                    except:
+                        pass
+            return date.isoformat(value) if type(value) == date else False
+        elif self.type == 'datetime':
+            tries = 2
+            if type(value) == str:
+                if tries == 2:
+                    try:
+                        value = datetime.fromtimestamp(value)
+                    except:
+                        tries -= 1
+                if tries == 1:
+                    try:
+                        value = datetime.fromisoformat(value)
+                    except:
+                        pass
+            return datetime.isoformat(value) if type(value) == datetime else False
+        elif self.type == 'time':
+            if type(value) == str:
+                try:
+                    value = time.fromisoformat(value)
+                except:
+                    pass
+            return time.isoformat(value) if type(value) == time else False
+    
+    def validate(self, value: any) -> str:
+        """Validate a value provided for the AVU.
+
+        Args:
+            value (any): A single value provided for an AVU based on a simple field.
+
+        Returns:
+            str: The final, converted value, or `False` if it is not valid.
+        """
+        if self.type in ['integer', 'float']:
+            return self._validate_number(value)
+        elif self.type == 'email':
+            return value if validators.email(value) else False
+        elif self.type in ["date", "time", "datetime-local"]:
+            return self._validate_datetime(value)
+        elif self.type == 'checkbox':
+            return "true" if type(value) == bool else False
+        elif self.type == 'url':
+            return value if validators.url(value) else False
+        else:
+            return str(value)
+    
+    def create_avu(self, value: any, unit: str = None, verbose: bool = False):
+        if type(value) == list:
+            if not self.repeatable:
+                raise TypeError(f"`{self.flattened_name}` is not repeatable, a single value should be provided instead.")
+            else:
+                validated_values = [self.validate(x) for x in value]
+                valid_values = [x for x in validated_values if x]
+                if len(valid_values) == 0:
+                    return self.deal_with_invalid(value, unit)
+                elif len(valid_values) < len(value):
+                    invalid_values = ', '.join([x for x in valid_values if not x])
+                    logging.warning(f"The following values provided for `{self.flattened_name}` are not valid: {invalid_values} and will be ignored.")
+                return [iRODSMeta(self.flattened_name, x, unit) for x in valid_values]
+        else:
+            validated_value = self.validate(value)
+            return [iRODSMeta(self.flattened_name, validated_value, unit)] if validated_value else self.deal_with_invalid(value, unit)
+    
+    def deal_with_invalid(self, value, unit):
+        if not self.required:
+            logging.warning(f"The values provided for `{self.flattened_name}` are not valid and will be ignored.")
+            return [None]
+        elif self.default:
+            logging.warning(f"The values provided for `{self.flattened_name}` are not valid: the default will be used.")
+            return [iRODSMeta(self.flattened_name, self.default, unit)]
+        raise ValueError(f"None of the values provided for `{self.flattened_name}` are valid.")
+    
 
 class CompositeField(Field):
     
@@ -129,18 +281,55 @@ class CompositeField(Field):
             raise TypeError("The 'properties' attribute of a composite field must be a dictionary.")
         else:
             self.fields = {k:Field.choose_class(k, v) for k, v in content['properties'].items()}
+            self.required_fields = {subfield.name : subfield.default for subfield in self.fields.values() if subfield.required}
+        
+        self.start_description()
+        extra = f"\nComposed of the following fields:\n"
+        field_description = '- ' + '\n- '.join(subfield.description for subfield in self.fields.values())
+        self.description = self.description + extra + field_description
             
-        def flatten_name(self, prefix: str):
-            """Flatten the name for the AVUs of the subfields.
+    def flatten_name(self, prefix: str):
+        """Flatten the name for the AVUs of the subfields.
 
-            Args:
-                prefix (str): Prefix to add to the name of the field.
-            """
-            super().flatten_name(prefix)
-            for subfield in self.fields.values():
-                subfield.flatten_name(self.flattened_name)
+        Args:
+            prefix (str): Prefix to add to the name of the field.
+        """
+        super().flatten_name(prefix)
+        for subfield in self.fields.values():
+            subfield.flatten_name(self.flattened_name)
     
+    def create_avu(self, value: dict | list, unit: str = None, verbose: bool = False) -> list:
+        """Generate an iRODS AVU based on one or more values.
 
+        Args:
+            value (dict | list of dict): The dictionary with subfields for the composite field.
+            unit (str, default): The unit for the AVU. By default it is None.
+                It is a stringified integer when the field belongs to a composite field.
+            verbose (bool, optional): Whether warnings should be raised when fields are ignored.
+                See `schema.check_metadata()`.
+
+        Raises:
+            TypeError: When a list if provided while the field is not repeatable or a dictionary is not provided.
+
+        Returns:
+            list of iRODSMeta: List of AVUs.
+        """
+        if type(value) == list:
+            if not self.repeatable:
+                raise TypeError(f"`{self.flattened_name}` is not repeatable, a dictionary should be provided instead.")
+            else:
+                avus = [check_metadata(self, x, verbose, CompositeField.get_unit(i, unit))
+                                                for i, x in enumerate(value)]
+                return [avu for avu_list in avus for avu in avu_list]
+        elif type(value) != dict:
+            raise TypeError(f"The value of `{self.flattened_name}` should be a dictionary.")
+        else:
+            return [check_metadata(self, value, CompositeField.get_unit(0, unit))]
+    
+    @staticmethod
+    def get_unit(this_unit: int, parent_unit: str = None):
+        return str(this_unit) if parent_unit is None else f"{parent_unit}.{this_unit}"
+            
 class MultipleField(Field):
     
     def __init__(self, name: str, content: dict):
@@ -160,6 +349,11 @@ class MultipleField(Field):
                 or the 'values' attribute is not a list.
         """
         super().__init__(name, content)
+        if content['type'] != 'select':
+            raise ValueError("The type of the field must be 'select'.")
+        else:
+            self.type = content['type']
+        
         
         if not 'multiple' in content:
             raise KeyError("A multiple-choice field requires a 'multiple' boolean attribute.")
@@ -174,5 +368,59 @@ class MultipleField(Field):
             raise ValueError("The 'values' attribute must be a list.")
         else:
             self.values = content['values']
+        
+        self.start_description()
+        multi_description = f'\nChoose {"at least" if self.multiple else "only"} one of the following values:\n'
+        values_description = '- ' + '\n- '.join(self.values)
+        self.description = self.description + multi_description + values_description
             
+    def create_avu(self, value: any, unit: str = None, verbose: bool = False) -> list:
+        """Generate an iRODS AVU based on one or more values.
+
+        Args:
+            value (any): A list of values or one value of the metadata.
+            unit (str, optional): The unit for the AVU. By default it is None.
+                It is a stringified integer when the field belongs to a composite field.
+            verbose (bool, optional): Not implemented
+
+        Raises:
+            ValueError: When a single-value multiple-choice field is given multiple values
+                or none of the provided values are valid.
+
+        Returns:
+            list of iRODSMeta or None: The AVUS with the valid values, or None if
+                the values are invalid but the field is not required.
+        """
+        if type(value) == list: # if we have multiple values
+            if not self.multiple:
+                raise ValueError("A single-value multiple-choice field can only receive one value.")
+            else: # if it's a multiple-value multiple-choice in its own right
+                not_acceptable = [x for x in value if not x in self.values]
+                if len(not_acceptable) == len(value):
+                    message = f"None of the values provided for `{self.flattened_name}` are valid."
+                    if self.required:
+                        raise ValueError(message)
+                    else:
+                        logging.warning(message)
+                        return None
+                elif len(not_acceptable) > 0:
+                    not_acceptable_values = ', '.join(not_acceptable)
+                    logging.warning(f"The following values provided for `{self.flattened_name}` are not acceptable and will be ignored: {not_acceptable_values}")                
+                return [iRODSMeta(self.flattened_name, x, unit) for x in value if x in self.values]
+        
+        else: # if we have only one value
+            if value in self.values:
+                return [iRODSMeta(self.flattened_name, value, unit)] # the value is correct!
+            elif not self.required:
+                # the value is not correct but the field is not required anyways
+                logging.warning(f"The value provided for `{self.flattened_name}` is not valid and will be ignored.")
+                return None
+            elif self.default is not None:
+                # the value is not correct but the field is required and there is a default
+                logging.warning(f"The value provided for `{self.flattened_name}` is not valid, the default value will be used instead.")
+                return [iRODSMeta(self.flattened_name, self.default, unit)]
+            else:
+                # the value is not correct but the field is required and there is no default
+                raise ValueError(f"The value provided for `{self.flattened_name}` is not valid but the field is required and there is no default.")
+        
         
