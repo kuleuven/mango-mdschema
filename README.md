@@ -1,4 +1,4 @@
-# Apply metadata schemas in Python
+# Apply ManGO metadata schemas in Python
 
 Small application to apply metadata from a metadata schema using iRODS PRC.
 
