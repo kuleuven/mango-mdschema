@@ -5,8 +5,8 @@ from irods.data_object import iRODSDataObject
 from irods.collection import iRODSCollection
 from irods.meta import AVUOperation, iRODSMeta
 
-from fields import Field
-from helpers import check_metadata
+from mango_mdschema.fields import Field
+from mango_mdschema.helpers import check_metadata
 
 class Schema:
     def __init__(self, path: str, prefix: str = 'mgs'):
@@ -51,10 +51,11 @@ class Schema:
         
         self.name = schema['schema_name']
         self.version = schema['version']
+        self.prefix = f"{prefix}.{self.name}"
         self.title = schema['title'] if schema['title'] else self.name
         self.fields = { k : Field.choose_class(k, v) for k, v in schema['properties'].items()}
         for subfield in self.fields.values():
-            subfield.flatten_name(f"{prefix}.{self.name}")
+            subfield.flatten_name(self.prefix)
         self.required_fields = {subfield.name : subfield.default for subfield in self.fields.values() if subfield.required}
         
     def apply(self, item: iRODSCollection | iRODSDataObject, metadata: dict, verbose: bool = False):
@@ -69,12 +70,23 @@ class Schema:
                 Defaults to False.
                 Warnings will be printed when non-required fields are present but not valid.
         """
-        
+        avu_version_name = f"{self.prefix}.__version__"
+        # report if data is annotated with a previous version
+        existing_mdschema = avu_version_name in item.metadata
+        if existing_mdschema and item.metadata[avu_version_name] != self.version:
+            logging.warning("There is existing metadata linked to a previous version of this schema. It will be removed.")
+        # delete existing AVUs linked to this metadata and warn in that case
+        existing_avus = [x for x in item.metadata.items() if x.name.startsWith(self.prefix)]
+        item.metadata.apply_atomic_operations(*[AVUOperation(operation='remove', avu=x) for x in existing_avus])
+        if verbose:
+            logging.warning(f"All of {len(existing_avus)} existing AVUs linked to the schema were removed.")
+            
         # create a list with the valid AVUs
         avus = check_metadata(self, metadata, verbose)
-        return avus
+        avus.append(iRODSMeta(avu_version_name, self.version))
+        
         # then apply atomic operations
-        # item.metadata.apply_atomic_operations(*[AVUOperation(operation='add', avu=x) for x in avus])
+        item.metadata.apply_atomic_operations(*[AVUOperation(operation='add', avu=x) for x in avus])
     
     def check_requirements(self, field):
         print(self.fields[field])

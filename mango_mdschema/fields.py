@@ -4,7 +4,7 @@ from datetime import datetime, date, time
 from irods.meta import iRODSMeta
 import validators
 
-from helpers import check_metadata
+from mango_mdschema.helpers import check_metadata
 
 class Field: 
     def __init__(self, name: str, content: dict):
@@ -129,7 +129,7 @@ class SimpleField(Field):
         self.start_description()
         self.description = "\n".join([self.description, extra])
     
-    def _validate_number(self, value: int | float | str) -> str:
+    def _validate_number(self, value) -> str:
         """Validate the value of an integer or float.
 
         Args:
@@ -150,7 +150,7 @@ class SimpleField(Field):
                 return False
         return str(value) if validators.between(value, min_val = self.minimum, max_val = self.maximum) else False
     
-    def _validate_datetime(self, value : date | time | datetime | str) -> str:
+    def _validate_datetime(self, value) -> str:
         """Validate the value of a date, time or datetime field.
         
         A date can be provided as `datetime.date` or something that can be converted to it via
@@ -298,7 +298,7 @@ class CompositeField(Field):
         for subfield in self.fields.values():
             subfield.flatten_name(self.flattened_name)
     
-    def create_avu(self, value: dict | list, unit: str = None, verbose: bool = False) -> list:
+    def create_avu(self, value: dict, unit: str = None, verbose: bool = False) -> list:
         """Generate an iRODS AVU based on one or more values.
 
         Args:
@@ -324,7 +324,7 @@ class CompositeField(Field):
         elif type(value) != dict:
             raise TypeError(f"The value of `{self.flattened_name}` should be a dictionary.")
         else:
-            return [check_metadata(self, value, CompositeField.get_unit(0, unit))]
+            return check_metadata(self, value, verbose, CompositeField.get_unit(0, unit))
     
     @staticmethod
     def get_unit(this_unit: int, parent_unit: str = None):
