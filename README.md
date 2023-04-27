@@ -13,7 +13,7 @@ Small application to apply metadata from a metadata schema using iRODS PRC.
 # authentication to iRODS
 import os, os.path
 from irods.session import iRODSSession
-from schema import Schema # THIS MODULE
+from mango_mdschema import Schema
 
 env_file = os.getenv('IRODS_ENVIRONMENT_FILE', os.path.expanduser('~/.irods/irods_environment.json'))
 
@@ -43,4 +43,11 @@ You can also check all the characteristics of a specific field such as 'name' wi
 
 ```python
 my_schema.check_requirements('name') # same as print(my_schema.fields['name'])
+```
+
+You can also test the list of AVUs that would be sent by providing a given metadata dictonary with `mango_mdschema.check_metadata()` like so:
+
+```python
+from mango_mdschema import check_metadata
+check_metadata(my_schema, my_metadata)
 ```
