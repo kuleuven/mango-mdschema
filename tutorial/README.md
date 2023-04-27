@@ -13,13 +13,25 @@ In this tutorial we won’t show how to apply them (see README) but how to
 check that the metadata is compatible with the schema, what requirements
 are checked and what the consequences of mismatches are.
 
+First we import what we need. The `Schema` class is the most important
+tool in this package: it reads a schema from file, validates it and lets
+you validate and apply metadata. `check_metadata()` is a function called
+by the `apply()` method of a `Schema` but you can use it to validate a
+dictionary of metadata against a schema.
+
 ``` python
 from mango_mdschema import Schema, check_metadata
 ```
 
+Create a schema by providing the path to the file. (In the future,
+`pathlib.Path` objects will also be accepted).
+
 ``` python
 my_schema = Schema('book-v2.0.0-published.json')
 ```
+
+Provide the metadata as a dictionary with not-namespaced attribute names
+and values (see below for specifications).
 
 ``` python
 my_metadata = {
@@ -32,6 +44,17 @@ my_metadata = {
     'publishing_date' : '2015-02-01'
 }
 ```
+
+Validate the metadata agains the schema with `check_metadata()`. The
+`verbose` argument also prints warnings when non required fields or
+required fields with default values are not provided. The output of this
+function is a list of `irods.meta.iRODSMeta` objects with namespaced
+attribute names.
+
+You can now assign them to a data object or collection with atomic
+operations, or let this package do it by running
+`my_schema.apply(my_object, my_metadata)` instead. This also checks if
+there is already metadata linked to the schema and replaces it.
 
 ``` python
 check_metadata(my_schema, my_metadata)
