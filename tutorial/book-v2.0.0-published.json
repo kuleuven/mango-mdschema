@@ -71,7 +71,8 @@
           "repeatable": true
         }
       },
-      "type": "object"
+      "type": "object",
+      "repeatable": true
     }
   },
   "edited_by": "u0118974",

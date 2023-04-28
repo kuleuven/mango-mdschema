@@ -1,0 +1,16 @@
+{
+  "schema_name": "book",
+  "version": "2.0.0",
+  "status": "published",
+  "properties": {
+    "title": {
+      "title": "Book title",
+      "type": "title",
+      "required": true
+    }
+  },
+  "edited_by": "u0118974",
+  "realm": "rdm_mango_training",
+  "title": "Book schema as an example",
+  "parent": ""
+}
