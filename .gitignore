@@ -1,3 +1,4 @@
 .venv/
 /schemas/
+tutorial/.ipynb_checkpoints/
 mango_mdschema/__pycache__/
