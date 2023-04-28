@@ -80,7 +80,7 @@ class Field:
         elif content['type'] in SimpleField.text_options:
             return SimpleField(name, content)
         else:
-            raise ValueError("The type of the field is not valid.")        
+            raise ValueError(f"The type of the '{name}' field is not valid.")        
         
 
 class SimpleField(Field):
@@ -113,12 +113,13 @@ class SimpleField(Field):
         else:
             self.type = content['type']
         
-        if self.type in ['integer', 'float']:
-            self.minimum = content['minimum'] if 'minimum' in content else None
-            self.maximum = content['maximum'] if 'maximum' in content else None
-            
         extra = ""
+        
         if self.type in ['integer', 'float']:
+            self.converter = int if self.type == 'integer' else float
+            self.minimum = self.converter(content['minimum']) if 'minimum' in content else None
+            self.maximum = self.converter(content['maximum']) if 'maximum' in content else None
+        
             if self.minimum is not None and self.maximum is not None:
                 extra = f"{self.type} between {self.minimum} and {self.maximum}."
             elif self.minimum is not None:
@@ -138,17 +139,11 @@ class SimpleField(Field):
         Returns:
             str: The final value if validated, else False.
         """
-        if self.type == 'integer':
-            try:
-                value = int(value)
-            except TypeError:
-                return False
-        elif self.type == 'float':
-            try:
-                value = float(value)
-            except TypeError:
-                return False
-        return str(value) if validators.between(value, min_val = self.minimum, max_val = self.maximum) else False
+        try:
+            value = self.converter(value)
+        except ValueError:
+            return False
+        return str(value) if validators.between(value, min = self.minimum, max = self.maximum) else False
     
     def _validate_datetime(self, value) -> str:
         """Validate the value of a date, time or datetime field.
@@ -229,13 +224,12 @@ class SimpleField(Field):
             if not self.repeatable:
                 raise TypeError(f"`{self.flattened_name}` is not repeatable, a single value should be provided instead.")
             else:
-                validated_values = [self.validate(x) for x in value]
-                valid_values = [x for x in validated_values if x]
+                valid_values = [x for x in value if self.validate(x)]
                 if len(valid_values) == 0:
                     return self.deal_with_invalid(value, unit)
                 elif len(valid_values) < len(value):
-                    invalid_values = ', '.join([x for x in valid_values if not x])
-                    logging.warning(f"The following values provided for `{self.flattened_name}` are not valid: {invalid_values} and will be ignored.")
+                    invalid_values = ', '.join([x for x in value if not x in valid_values])
+                    logging.warning(f"The following values provided for `{self.flattened_name}` are not valid and will be ignored: {invalid_values}.")
                 return [iRODSMeta(self.flattened_name, x, unit) for x in valid_values]
         else:
             validated_value = self.validate(value)
@@ -282,6 +276,8 @@ class CompositeField(Field):
         else:
             self.fields = {k:Field.choose_class(k, v) for k, v in content['properties'].items()}
             self.required_fields = {subfield.name : subfield.default for subfield in self.fields.values() if subfield.required}
+            if len(self.required_fields) > 0:
+                self.required = True
         
         self.start_description()
         extra = f"\nComposed of the following fields:\n"
