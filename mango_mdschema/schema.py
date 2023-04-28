@@ -76,7 +76,7 @@ class Schema:
         if existing_mdschema and item.metadata[avu_version_name] != self.version:
             logging.warning("There is existing metadata linked to a previous version of this schema. It will be removed.")
         # delete existing AVUs linked to this metadata and warn in that case
-        existing_avus = [x for x in item.metadata.items() if x.name.startsWith(self.prefix)]
+        existing_avus = [x for x in item.metadata.items() if x.name.startswith(self.prefix)]
         item.metadata.apply_atomic_operations(*[AVUOperation(operation='remove', avu=x) for x in existing_avus])
         if verbose:
             logging.warning(f"All of {len(existing_avus)} existing AVUs linked to the schema were removed.")
