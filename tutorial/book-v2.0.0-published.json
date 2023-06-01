@@ -68,7 +68,8 @@
           "title": "Email address",
           "type": "email",
           "required": true,
-          "repeatable": true
+          "repeatable": true,
+          "pattern": "@kuleuven.be$"
         }
       },
       "type": "object",
