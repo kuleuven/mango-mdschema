@@ -163,7 +163,7 @@ class SimpleField(Field):
         elif self.type in SimpleField.types_with_regex:
             self.pattern = content["pattern"] if "pattern" in content else None
             if self.pattern is not None:
-                extra = f"matching the following regex: \033[91m${self.pattern}\033[0m."
+                extra = f"matching the following regex: \033[91m{self.pattern}\033[0m."
 
         self.start_description()
         self.description = (

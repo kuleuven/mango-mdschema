@@ -137,16 +137,6 @@ values will simply be ignored. You will get warnings if you set
 print(my_schema)
 ```
 
-    Book schema as an example
-    Metadata annotated with the schema 'book' (2.0.0) carry the prefix 'mgs.book'.
-    This schema contains the following 6 fields:
-    - title, of type 'text' (required).
-    - publishing_date, of type 'date' (required).
-    - cover_colors, of type 'select'.
-    - publisher, of type 'select' (required).
-    - ebook, of type 'select'.
-    - author, of type 'object' (required).
-
 ``` python
 my_schema.required_fields # note: 'author' is required because it contains required fields
 ```
@@ -205,7 +195,7 @@ my_schema.check_requirements('author')
     Type: email.
     Required: True. Default: None.
     Repeatable: True.
-    matching the following regex: $@kuleuven.be$.
+    matching the following regex: @kuleuven.be$.
 
 Composite fields also have `required_fields` attributes and, like
 schemas, a `fields` attribute listing all the fields.
@@ -548,7 +538,7 @@ my_schema.check_requirements('author')
     Type: email.
     Required: True. Default: None.
     Repeatable: True.
-    matching the following regex: $@kuleuven.be$.
+    matching the following regex: @kuleuven.be$.
 
 ``` python
 my_metadata['author'][0]['age'] = 30
