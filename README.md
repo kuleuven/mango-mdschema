@@ -52,4 +52,4 @@ from mango_mdschema import check_metadata
 check_metadata(my_schema, my_metadata)
 ```
 
-Check the [tutorial](tutorial/README.ipynb) for more details.
+Check the [tutorial](tutorial/) for more details.
