@@ -35,7 +35,7 @@ with iRODSSession(irods_env_file=env_file) as session:
 You can check the fields in a schema with:
 
 ```python
-my_schema.fields
+print(my_schema)
 ```
 
 The list of required fields and default values is found as the `required_fields` attribute.
@@ -51,3 +51,5 @@ You can also test the list of AVUs that would be sent by providing a given metad
 from mango_mdschema import check_metadata
 check_metadata(my_schema, my_metadata)
 ```
+
+Check the [tutorial](tutorial/README.ipynb) for more details.
