@@ -38,14 +38,17 @@ my_schema = Schema('book-v2.0.0-published.json')
 ```
 
 Provide the metadata as a dictionary with not-namespaced attribute names
-and values (see below for specifications).
+and values (see below for specifications). If you have multiple values
+for the same attribute name (i.e. in a repeatable field or a
+multiple-value multiple-choice field), you should provide them as an
+array.
 
 ``` python
 my_metadata = {
     'title' : "A book not written yet",
     'author' : {
         'name' : "Fulano De Tal",
-        'email' : "fulano.detal@domain.info"
+        'email' : "fulano.detal@kuleuven.be"
     },
     'ebook' : 'Available',
     'publishing_date' : '2015-02-01'
@@ -61,15 +64,17 @@ attribute names.
 You can now assign them to a data object or collection with atomic
 operations, or let this package do it by running
 `my_schema.apply(my_object, my_metadata)` instead. This also checks if
-there is already metadata linked to the schema and replaces it.
+there is already metadata linked to the schema and replaces it and
+updates the metadata related to the schema version, so it’s more in line
+with what the ManGO portal does.
 
 ``` python
 check_metadata(my_schema, my_metadata)
 ```
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
+     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
      <iRODSMeta None mgs.book.ebook Available None>,
      <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
@@ -119,24 +124,28 @@ Schema('bad-schema.json')
     ValueError: The type of the 'title' field is not valid.
 
 If you are not entirely familiar with your schema, you can check its
-contents with the `fields` and `required_fields` attributes. The former
-is a dictionary of fields; the latter as well, but only listing the
-required fields and providing their default values. This is particularly
+contents by printing it or listing its `required_fields` attribute. This
+attribute is a dictionary of with the names required fields as keys and
+their default value, if available, as value. This is particularly
 important because you will only get errors if a required field *without
 default* is not provided or the value provided for it is wrong. For
 required fields with defaults and non-required fields, wrong or missing
-values will simply be ignored.
+values will simply be ignored. You will get warnings if you set
+`verbose` to `True`, though.
 
 ``` python
-my_schema.fields
+print(my_schema)
 ```
 
-    {'title': <mango_mdschema.fields.SimpleField at 0x7f1e1de9d0c0>,
-     'publishing_date': <mango_mdschema.fields.SimpleField at 0x7f1e1de6ffa0>,
-     'cover_colors': <mango_mdschema.fields.MultipleField at 0x7f1e1c64c6d0>,
-     'publisher': <mango_mdschema.fields.MultipleField at 0x7f1e1c64c760>,
-     'ebook': <mango_mdschema.fields.MultipleField at 0x7f1e1c64c7c0>,
-     'author': <mango_mdschema.fields.CompositeField at 0x7f1e1c64c820>}
+    Book schema as an example
+    Metadata annotated with the schema 'book' (2.0.0) carry the prefix 'mgs.book'.
+    This schema contains the following 6 fields:
+    - title, of type 'text' (required).
+    - publishing_date, of type 'date' (required).
+    - cover_colors, of type 'select'.
+    - publisher, of type 'select' (required).
+    - ebook, of type 'select'.
+    - author, of type 'object' (required).
 
 ``` python
 my_schema.required_fields # note: 'author' is required because it contains required fields
@@ -153,18 +162,16 @@ my_schema.check_requirements('title')
 ```
 
     Type: text.
-                    Required: True. Default: None.
-                    Repeatable: False.
-                    
+    Required: True. Default: None.
+    Repeatable: False.
 
 ``` python
 my_schema.check_requirements('cover_colors')
 ```
 
     Type: select.
-                    Required: False.
-                    Repeatable: False.
-                    
+    Required: False.
+    Repeatable: False.
     Choose at least one of the following values:
     - red
     - blue
@@ -179,26 +186,29 @@ my_schema.check_requirements('author')
 ```
 
     Type: object.
-                    Required: True. Default: None.
-                    Repeatable: True.
-                    
+    Required: True. (2 of its 3 fields are required.)
+    Repeatable: True.
+
     Composed of the following fields:
-    - Type: text.
-                    Required: True. Default: None.
-                    Repeatable: False.
-                    
+    name
+    Type: text.
+    Required: True. Default: None.
+    Repeatable: False.
 
-    - Type: integer.
-                    Required: False.
-                    Repeatable: False.
-                    
+    age
+    Type: integer.
+    Required: False.
+    Repeatable: False.
     integer between 12 and 99.
-    - Type: email.
-                    Required: True. Default: None.
-                    Repeatable: True.
-                    
 
-Composite fields also have `fields` and `required_fields` attributes.
+    email
+    Type: email.
+    Required: True. Default: None.
+    Repeatable: True.
+    matching the following regex: $@kuleuven.be$.
+
+Composite fields also have `required_fields` attributes and, like
+schemas, a `fields` attribute listing all the fields.
 
 ``` python
 my_schema.fields['author'].required_fields
@@ -225,8 +235,8 @@ check_metadata(my_schema, my_metadata)
 ```
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
+     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
      <iRODSMeta None mgs.book.ebook Available None>,
      <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
      <iRODSMeta None mgs.book.cover_colors red None>,
@@ -239,7 +249,7 @@ value. In this case, we are providing the following values for ‘author’,
 which is a composite field:
 
 ``` python
-{ 'name' : 'Fulano De Tal', 'email' : 'fulano.detal@domain.info' }
+{ 'name' : 'Fulano De Tal', 'email' : 'fulano.detal@kuleuven.be' }
 ```
 
 This results in two AVUs with `mgs.book.author.name` and
@@ -255,37 +265,37 @@ unit indicates which email goes with each name.
 my_metadata['author']
 ```
 
-    {'name': 'Fulano De Tal', 'email': 'fulano.detal@domain.info'}
+    {'name': 'Fulano De Tal', 'email': 'fulano.detal@kuleuven.be'}
 
 ``` python
 my_metadata['author'] = [
-    {'name': 'Fulano De Tal', 'email': 'fulano.detal@domain.info'},
-    {'name': 'Jane Doe', 'email': 'jane_doe@email.com'}
+    {'name': 'Fulano De Tal', 'email': 'fulano.detal@kuleuven.be'},
+    {'name': 'Jane Doe', 'email': 'jane_doe@kuleuven.be'}
 ]
 checked_metadata = check_metadata(my_schema, my_metadata)
 [x for x in checked_metadata if x.name.startswith('mgs.book.author')]
 ```
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 1>,
-     <iRODSMeta None mgs.book.author.email jane_doe@email.com 1>]
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
+     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>]
 
 Actually, the email of the author is also a repeatable field, so we
 could get more instances of `mgs.book.author.email`, always with the
 unit indicating who it belongs to.
 
 ``` python
-my_metadata['author'][1]['email'] = ['jane_doe@email.com', 'sweetdoe@bambi.be']
+my_metadata['author'][1]['email'] = ['jane_doe@kuleuven.be', 'sweetdoe@kuleuven.be']
 checked_metadata = check_metadata(my_schema, my_metadata)
 [x for x in checked_metadata if x.name.startswith('mgs.book.author')]
 ```
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 1>,
-     <iRODSMeta None mgs.book.author.email jane_doe@email.com 1>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@bambi.be 1>]
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
+     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>]
 
 ## Metadata validation
 
@@ -317,11 +327,11 @@ check_metadata(my_schema, my_metadata, verbose = True)
     WARNING:root:The following non required fields are missing: mgs.book.author.age.
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 1>,
-     <iRODSMeta None mgs.book.author.email jane_doe@email.com 1>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@bambi.be 1>,
+     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
+     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
      <iRODSMeta None mgs.book.ebook Available None>,
      <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
      <iRODSMeta None mgs.book.cover_colors red None>,
@@ -333,7 +343,7 @@ check_metadata(my_schema, my_metadata, verbose = True)
 
 ``` python
 mini_md = {'title' : 'I only have a title', 'publishing_date' : '2023-04-28',
-           'author' : {'name' : 'Name Surname', 'email' : 'rightemail@domain.info'},
+           'author' : {'name' : 'Name Surname', 'email' : 'rightemail@kuleuven.be'},
            'publishing_house' : 'Oxford'}
 check_metadata(my_schema, mini_md, verbose = True)
 ```
@@ -345,8 +355,8 @@ check_metadata(my_schema, mini_md, verbose = True)
 
     [<iRODSMeta None mgs.book.title I only have a title None>,
      <iRODSMeta None mgs.book.publishing_date 2023-04-28 None>,
-     <iRODSMeta None mgs.book.author.name Name Surname 0>,
-     <iRODSMeta None mgs.book.author.email rightemail@domain.info 0>,
+     <iRODSMeta None mgs.book.author.name Name Surname 1>,
+     <iRODSMeta None mgs.book.author.email rightemail@kuleuven.be 1>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
 ``` python
@@ -379,47 +389,58 @@ the provided range.
 ``` python
 my_metadata['author'][0]['age'] = 30
 checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '0']
+[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.age 30 0>]
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.age 30 1>]
 
 ``` python
 # provided as a string that can be converted with `int()`
 my_metadata['author'][0]['age'] = '30'
 checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '0']
+[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.age 30 0>]
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.age 30 1>]
+
+``` python
+# provided as a float that can be converted with `int()`
+my_metadata['author'][0]['age'] = 30.5
+checked_metadata = check_metadata(my_schema, my_metadata)
+[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
+```
+
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.age 30 1>]
 
 ``` python
 # wrong range: it should be between 12 and 99
 my_metadata['author'][0]['age'] = 103
 checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '0']
+[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
 
     WARNING:root:The values provided for `mgs.book.author.age` are not valid and will be ignored.
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>]
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>]
 
 ``` python
 # wrong format
 my_metadata['author'][0]['age'] = 'thirty'
 checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '0']
+[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
 
     WARNING:root:The values provided for `mgs.book.author.age` are not valid and will be ignored.
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>]
+    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>]
 
 ### Dates, times and datetimes
 
@@ -439,9 +460,9 @@ check_metadata(my_schema, mini_md)
 ```
 
     [<iRODSMeta None mgs.book.title I only have a title None>,
-     <iRODSMeta None mgs.book.publishing_date 2023-04-28 None>,
-     <iRODSMeta None mgs.book.author.name Name Surname 0>,
-     <iRODSMeta None mgs.book.author.email rightemail@domain.info 0>,
+     <iRODSMeta None mgs.book.publishing_date 2023-06-01 None>,
+     <iRODSMeta None mgs.book.author.name Name Surname 1>,
+     <iRODSMeta None mgs.book.author.email rightemail@kuleuven.be 1>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
 ``` python
@@ -450,9 +471,9 @@ check_metadata(my_schema, mini_md)
 ```
 
     [<iRODSMeta None mgs.book.title I only have a title None>,
-     <iRODSMeta None mgs.book.publishing_date 2023-04-28 None>,
-     <iRODSMeta None mgs.book.author.name Name Surname 0>,
-     <iRODSMeta None mgs.book.author.email rightemail@domain.info 0>,
+     <iRODSMeta None mgs.book.publishing_date 2023-06-01 None>,
+     <iRODSMeta None mgs.book.author.name Name Surname 1>,
+     <iRODSMeta None mgs.book.author.email rightemail@kuleuven.be 1>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
 ``` python
@@ -473,22 +494,88 @@ check_metadata(my_schema, my_metadata)
     WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: bademail@whatevs.
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.age 30 0>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 1>,
-     <iRODSMeta None mgs.book.author.email jane_doe@email.com 1>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@bambi.be 1>,
+     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.age 30 1>,
+     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
+     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
      <iRODSMeta None mgs.book.ebook Available None>,
      <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
      <iRODSMeta None mgs.book.cover_colors red None>,
      <iRODSMeta None mgs.book.cover_colors blue None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
+``` python
+my_metadata['author'][1]['email'].pop()
+```
+
+    'bademail@whatevs'
+
 In the example above, *one* of the provided emails is wrong, and
 therefore it is just ignored. In the next section we see that if the
 value is missing or the only provided value is wrong, an error is
 thrown, because the field is required.
+
+### Regular expressions
+
+URLs, emails and simple text can also have a `pattern` attribute
+providing a regular expression that checks its appropriateness. In the
+case of these emails, we have additional validation to make sure that
+the domain is “kuleuven.be”:
+
+``` python
+my_schema.check_requirements('author')
+```
+
+    Type: object.
+    Required: True. (2 of its 3 fields are required.)
+    Repeatable: True.
+
+    Composed of the following fields:
+    name
+    Type: text.
+    Required: True. Default: None.
+    Repeatable: False.
+
+    age
+    Type: integer.
+    Required: False.
+    Repeatable: False.
+    integer between 12 and 99.
+
+    email
+    Type: email.
+    Required: True. Default: None.
+    Repeatable: True.
+    matching the following regex: $@kuleuven.be$.
+
+``` python
+my_metadata['author'][0]['age'] = 30
+my_metadata['author'][1]['email'].append('wrong_domain@gmail.com')
+check_metadata(my_schema, my_metadata)
+```
+
+    WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: wrong_domain@gmail.com.
+
+    [<iRODSMeta None mgs.book.title A book not written yet None>,
+     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.age 30 1>,
+     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
+     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.ebook Available None>,
+     <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
+     <iRODSMeta None mgs.book.cover_colors red None>,
+     <iRODSMeta None mgs.book.cover_colors blue None>,
+     <iRODSMeta None mgs.book.publisher Tor None>]
+
+``` python
+my_metadata['author'][1]['email'].pop()
+```
+
+    'wrong_domain@gmail.com'
 
 ### Composite fields
 
@@ -507,8 +594,6 @@ my_metadata['author'].append({'name' : 'etal'})
 check_metadata(my_schema, my_metadata)
 ```
 
-    WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: bademail@whatevs.
-
     KeyError: 'The following required fields are missing and there is no default: mgs.book.author.email.'
 
 ``` python
@@ -517,26 +602,22 @@ my_metadata['author'][2]['email'] = 'bademail.com'
 check_metadata(my_schema, my_metadata)
 ```
 
-    WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: bademail@whatevs.
-
     ValueError: None of the values provided for `mgs.book.author.email` are valid.
 
 ``` python
-my_metadata['author'][2]['email'] = 'bademail@domain.com'
+my_metadata['author'][2]['email'] = 'bademail@kuleuven.be'
 check_metadata(my_schema, my_metadata)
 ```
 
-    WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: bademail@whatevs.
-
     [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 0>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@domain.info 0>,
-     <iRODSMeta None mgs.book.author.age 30 0>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 1>,
-     <iRODSMeta None mgs.book.author.email jane_doe@email.com 1>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@bambi.be 1>,
-     <iRODSMeta None mgs.book.author.name etal 2>,
-     <iRODSMeta None mgs.book.author.email bademail@domain.com 2>,
+     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
+     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.author.age 30 1>,
+     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
+     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
+     <iRODSMeta None mgs.book.author.name etal 3>,
+     <iRODSMeta None mgs.book.author.email bademail@kuleuven.be 3>,
      <iRODSMeta None mgs.book.ebook Available None>,
      <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
      <iRODSMeta None mgs.book.cover_colors red None>,
