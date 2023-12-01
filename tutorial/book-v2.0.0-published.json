@@ -74,6 +74,10 @@
       },
       "type": "object",
       "repeatable": true
+    },
+    "market_price": {
+      "title": "Market price",
+      "type": "float"
     }
   },
   "edited_by": "u0118974",

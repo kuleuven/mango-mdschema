@@ -1,5 +1,4 @@
-Metadata schemas in Python
-================
+# Metadata schemas in Python
 
 This tutorial shows you - The basic workflow with this package - The
 contents and possibilities of the `Schema` class - What the dictionary
@@ -339,7 +338,7 @@ check_metadata(my_schema, mini_md, verbose = True)
 ```
 
     WARNING:root:The following required fields are missing and the default value will be used: mgs.book.publisher (Tor)
-    WARNING:root:The following non required fields are missing: mgs.book.cover_colors, mgs.book.ebook.
+    WARNING:root:The following non required fields are missing: mgs.book.cover_colors, mgs.book.ebook, mgs.book.market_price.
     WARNING:root:The following fields do not belong to the schema and will be ignored: publishing_house.
     WARNING:root:The following non required fields are missing: mgs.book.author.age.
 
@@ -431,6 +430,16 @@ checked_metadata = check_metadata(my_schema, my_metadata)
 
     [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
      <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>]
+
+Values are also checked if there are no minimum or maximum specified.
+
+``` python
+mini_md['market_price'] = 9.99
+checked_metadata = check_metadata(my_schema, mini_md)
+[x for x in checked_metadata if x.name.endswith('price')]
+```
+
+    [<iRODSMeta None mgs.book.market_price 9.99 None>]
 
 ### Dates, times and datetimes
 

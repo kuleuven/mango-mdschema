@@ -183,11 +183,18 @@ class SimpleField(Field):
             value = self.converter(value)
         except ValueError:
             return False
-        return (
-            str(value)
-            if validators.between(value, min=self.minimum, max=self.maximum)
-            else False
-        )
+        if self.minimum and self.maximum:
+            return (
+                str(value)
+                if validators.between(value, min=self.minimum, max=self.maximum)
+                else False
+            )
+        elif self.minimum:
+            return (str(value) if value >= self.minimum else False)
+        elif self.maximum:
+            return (str(value) if value <= self.maximum else False)
+        else:
+            return str(value)
 
     def _validate_datetime(self, value) -> str:
         """Validate the value of a date, time or datetime field.
