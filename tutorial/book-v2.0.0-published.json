@@ -69,7 +69,7 @@
           "type": "email",
           "required": true,
           "repeatable": true,
-          "pattern": "@kuleuven.be$"
+          "pattern": "[^@]+@kuleuven.be"
         }
       },
       "type": "object",
