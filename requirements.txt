@@ -1,0 +1,2 @@
+python-irodsclient>=1.1.1,<2.0.0
+validators==0.22.0

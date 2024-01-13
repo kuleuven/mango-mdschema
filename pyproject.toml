@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+dynamic = ["dependencies", "optional-dependencies"]
+name = "mango-mdschema"
+description = "ManGO metadata schemas on iRODS"
+readme = "README.md"
+requires-python = ">=3.9"
+version = "0.1.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+repository = "https://github.com/kuleuven/mango-schema-validator"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+
+[tool.setuptools.packages.find]
+include = ['mango_mdschema', 'mango_mdschema.*']
+
+[tool.pylint."messages control"]
+disable = ["too-many-arguments"]
