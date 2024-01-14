@@ -7,7 +7,7 @@ dynamic = ["dependencies", "optional-dependencies"]
 name = "mango-mdschema"
 description = "ManGO metadata schemas on iRODS"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 version = "0.1.0"
 license = {file = "LICENSE"}
 authors = [
