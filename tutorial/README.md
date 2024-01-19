@@ -18,6 +18,16 @@ top of the repository) but how to check that the metadata is compatible
 with the schema, what requirements are checked and what the consequences
 of mismatches are.
 
+``` python
+!pip install python-irodsclient
+```
+
+    Requirement already satisfied: python-irodsclient in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (1.1.9)
+    Requirement already satisfied: six>=1.10.0 in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from python-irodsclient) (1.16.0)
+    Requirement already satisfied: defusedxml in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from python-irodsclient) (0.7.1)
+    Requirement already satisfied: PrettyTable>=0.7.2 in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from python-irodsclient) (3.9.0)
+    Requirement already satisfied: wcwidth in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from PrettyTable>=0.7.2->python-irodsclient) (0.2.12)
+
 First we import what we need. The `Schema` class is the most important
 tool in this package: it reads a schema from file, validates it and lets
 you validate and apply metadata. `check_metadata()` is a function called
@@ -27,6 +37,8 @@ dictionary of metadata against a schema.
 ``` python
 from mango_mdschema import Schema, check_metadata
 ```
+
+    ModuleNotFoundError: No module named 'irods'
 
 Create a schema by providing the path to the file. (In the future,
 `pathlib.Path` objects will also be accepted). See below for more

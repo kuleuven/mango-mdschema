@@ -161,9 +161,9 @@ class SimpleField(Field):
             elif self.maximum is not None:
                 extra = f"{self.type} smaller than {self.maximum}."
         elif self.type in SimpleField.types_with_regex:
-            self.pattern = content["pattern"] if "pattern" in content else None
+            self.pattern = f'^{content["pattern"]}$' if "pattern" in content else None
             if self.pattern is not None:
-                extra = f"matching the following regex: \033[91m{self.pattern}\033[0m."
+                extra = f"fully matching the following regex: \033[91m{self.pattern}\033[0m."
 
         self.start_description()
         self.description = (
@@ -190,9 +190,9 @@ class SimpleField(Field):
                 else False
             )
         elif self.minimum:
-            return (str(value) if value >= self.minimum else False)
+            return str(value) if value >= self.minimum else False
         elif self.maximum:
-            return (str(value) if value <= self.maximum else False)
+            return str(value) if value <= self.maximum else False
         else:
             return str(value)
 
@@ -241,7 +241,7 @@ class SimpleField(Field):
             return self._validate_number(value)
         elif self.type in SimpleField.types_with_regex:
             # check regex if appropriate
-            if self.pattern is not None and not re.search(self.pattern, value):
+            if self.pattern is not None and not re.match(self.pattern, value):
                 return False
             # validate email (if regex passed)
             if self.type == "email":
