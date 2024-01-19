@@ -7,3 +7,4 @@ mango_mdschema/__pycache__/
 *.egg-info/
 build/
 .pytest_cache/
+__pycache__/
