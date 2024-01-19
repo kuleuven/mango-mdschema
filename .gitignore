@@ -2,3 +2,8 @@
 /schemas/
 tutorial/.ipynb_checkpoints/
 mango_mdschema/__pycache__/
+
+# Python build files
+*.egg-info/
+build/
+.pytest_cache/
