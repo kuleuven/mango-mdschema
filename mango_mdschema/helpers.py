@@ -24,7 +24,7 @@ def check_metadata(
     """
     # make sure that the required fields are present
     missing_required = [
-        schema.fields[field_name].flattened_name
+        schema.fields[field_name].avu_name
         for field_name, default in schema.required_fields.items()
         if field_name not in metadata.keys() and default is None
     ]
@@ -48,7 +48,7 @@ def check_metadata(
         # send warning when the default value of a required field is used
         if len(go_to_default) > 0:
             default_pairs = ", ".join(
-                f"{schema.fields[field_name].flattened_name} ({schema.required_fields[field_name]})"
+                f"{schema.fields[field_name].avu_name} ({schema.required_fields[field_name]})"
                 for field_name in go_to_default
             )
             logging.warning(
@@ -58,7 +58,7 @@ def check_metadata(
 
         # send warning for missing non-required fields
         missing_non_required = [
-            field.flattened_name
+            field.avu_name
             for field_name, field in schema.fields.items()
             if not field.required and field_name not in metadata
         ]
@@ -79,7 +79,7 @@ def check_metadata(
         to_use[k] = schema.fields[k].create_avu(v, index, verbose)
     for k in go_to_default:
         to_use[k] = [
-            iRODSMeta(schema.fields[k].flattened_name, schema.fields[k].default, index)
+            iRODSMeta(schema.fields[k].avu_name, schema.fields[k].default, index)
         ]
 
     return [

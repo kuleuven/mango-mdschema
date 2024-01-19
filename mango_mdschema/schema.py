@@ -65,9 +65,7 @@ class Schema:
         self.version = schema["version"]
         self.prefix = f"{prefix}.{self.name}"
         self.title = schema["title"] if schema["title"] else self.name
-        self.fields = {k: Field.create(k, v) for k, v in schema["properties"].items()}
-        for subfield in self.fields.values():
-            subfield.flatten_name(self.prefix)
+        self.fields = {k: Field.create(k, v, self.prefix) for k, v in schema["properties"].items()}
         self.required_fields = {
             subfield.name: subfield.default
             for subfield in self.fields.values()

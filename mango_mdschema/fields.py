@@ -19,21 +19,23 @@ class Field:
         required (bool): Whether the field is required.
         default (any, optional): The default value for the field, if it is required.
         repeatable (bool): Whether the field is repeatable.
-        flattened_name (str): The flattened name of the field, for the AVU.
+        prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
         description (str): Description of the criteria for the field.
     """
 
-    def __init__(self, name: str, content: dict):
+    def __init__(self, name: str, content: dict, prefix: str):
         """Class representing a field of a metadata schema.
 
         Args:
             name (str): Name of the field, without flattening.
             content (dict): The contents of the JSON object the field comes from.
+            prefix (str): Prefix to add to the field name to flatten it for the AVU.
 
         Raises:
             KeyError: When the contents don't include a type.
         """
         self.name = name
+        self.prefix = prefix
 
         if "type" not in content:
             raise KeyError("A field must have a type.")
@@ -63,14 +65,10 @@ class Field:
             ]
         )
 
-    def flatten_name(self, prefix: str):
-        """Flatten the name for the AVU.
-
-        Args:
-            prefix (str): Prefix to add to the name of the field.
-        """
-        # TODO: remove this method and use the prefix in the constructor
-        self.flattened_name = f"{prefix}.{self.name}"  # pylint: disable=attribute-defined-outside-init
+    @property
+    def avu_name(self):
+        """Get the flattened field name for AVU's."""
+        return f"{self.prefix}.{self.name}"
 
     def create_avu(self, value, unit, verbose):
         """Generate an iRODS AVU based on one or more values."""
@@ -80,12 +78,13 @@ class Field:
         return self.description
 
     @staticmethod
-    def create(name: str, content: dict):
+    def create(name: str, content: dict, prefix: str):
         """Field factory.
 
         Args:
             name (str): Name of the field, to initiate it.
             content (dict): Contents of the JSON the field comes from.
+            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
 
         Raises:
             KeyError: When the JSON does not include a 'type' key.
@@ -97,11 +96,11 @@ class Field:
         if "type" not in content:
             raise KeyError("A field should have a type.")
         if content["type"] == "object":
-            return CompositeField(name, content)
+            return CompositeField(name, content, prefix)
         if content["type"] == "select":
-            return MultipleField(name, content)
+            return MultipleField(name, content, prefix)
         if content["type"] in SimpleField.text_options:
-            return SimpleField(name, content)
+            return SimpleField(name, content, prefix)
         raise ValueError(f"The type of the '{name}' field is not valid.")
 
 
@@ -144,17 +143,18 @@ class SimpleField(Field):
     maximum = None
     pattern = None
 
-    def __init__(self, name: str, content: dict):
+    def __init__(self, name: str, content: dict, prefix: str):
         """Init simple field.
 
         Args:
             name (str): Name of the field.
             content (dict): Contents of the JSON that the field comes from.
+            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
 
         Raises:
             ValueError: When the type of the field is not valid.
         """
-        super().__init__(name, content)
+        super().__init__(name, content, prefix)
 
         if self.type not in SimpleField.text_options:
             raise ValueError("The type of the field is not valid.")
@@ -280,7 +280,7 @@ class SimpleField(Field):
             if not self.repeatable:
                 raise TypeError(
                     (
-                        f"`{self.flattened_name}` is not repeatable, "
+                        f"`{self.avu_name}` is not repeatable, "
                         "a single value should be provided instead."
                     )
                 )
@@ -291,14 +291,14 @@ class SimpleField(Field):
                 invalid_values = ", ".join([x for x in value if x not in valid_values])
                 logging.warning(
                     "The following values provided for `%s` are not valid and will be ignored: %s.",
-                    self.flattened_name,
+                    self.avu_name,
                     invalid_values,
                 )
-            return [iRODSMeta(self.flattened_name, x, unit) for x in valid_values]
+            return [iRODSMeta(self.avu_name, x, unit) for x in valid_values]
         else:
             validated_value = self.validate(value)
             return (
-                [iRODSMeta(self.flattened_name, validated_value, unit)]
+                [iRODSMeta(self.avu_name, validated_value, unit)]
                 if validated_value
                 else self.deal_with_invalid(value, unit)
             )
@@ -308,17 +308,17 @@ class SimpleField(Field):
         if not self.required:
             logging.warning(
                 "The values provided for `%s` are not valid and will be ignored.",
-                self.flattened_name,
+                self.avu_name,
             )
             return [None]
         if self.default:
             logging.warning(
                 "The values provided for `%s` are not valid: the default will be used.",
-                self.flattened_name,
+                self.avu_name,
             )
-            return [iRODSMeta(self.flattened_name, self.default, unit)]
+            return [iRODSMeta(self.avu_name, self.default, unit)]
         raise ValueError(
-            f"None of the values provided for `{self.flattened_name}` are valid."
+            f"None of the values provided for `{self.avu_name}` are valid."
         )
 
 
@@ -329,19 +329,20 @@ class CompositeField(Field):
     fields (dict of Field): Collection of subfields.
     """
 
-    def __init__(self, name: str, content: dict):
+    def __init__(self, name: str, content: dict, prefix: str):
         """Init a composite field.
 
         Args:
             name (str): Name of the field.
             content (dict): Contents of the JSON the field comes from.
+            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
 
         Raises:
             ValueError: When the 'type' attribute of `content` is not 'object'.
             KeyError: When the 'properties' attribute is missing from `content`.
             TypeError: When the 'properties' attribute of `content` is not a dictionary.
         """
-        super().__init__(name, content)
+        super().__init__(name, content, prefix)
 
         if self.type != "object":
             raise ValueError("The type of the field must be 'object'.")
@@ -351,7 +352,7 @@ class CompositeField(Field):
             raise TypeError(
                 "The 'properties' attribute of a composite field must be a dictionary."
             )
-        self.fields = {k: Field.create(k, v) for k, v in content["properties"].items()}
+        self.fields = {k: Field.create(k, v, self.prefix) for k, v in content["properties"].items()}
         self.required_fields = {
             subfield.name: subfield.default
             for subfield in self.fields.values()
@@ -374,16 +375,6 @@ class CompositeField(Field):
             ]
         )
 
-    def flatten_name(self, prefix: str):
-        """Flatten the name for the AVUs of the subfields.
-
-        Args:
-            prefix (str): Prefix to add to the name of the field.
-        """
-        super().flatten_name(prefix)
-        for subfield in self.fields.values():
-            subfield.flatten_name(self.flattened_name)
-
     def create_avu(self, value: dict, unit: str = None, verbose: bool = False) -> list:
         """Generate an iRODS AVU based on one or more values.
 
@@ -405,7 +396,7 @@ class CompositeField(Field):
             if not self.repeatable:
                 raise TypeError(
                     (
-                        f"`{self.flattened_name}` is not repeatable, "
+                        f"`{self.avu_name}` is not repeatable, "
                         "a dictionary should be provided instead."
                     )
                 )
@@ -416,7 +407,7 @@ class CompositeField(Field):
             return [avu for avu_list in avus for avu in avu_list]
         elif not isinstance(value, dict):
             raise TypeError(
-                f"The value of `{self.flattened_name}` should be a dictionary."
+                f"The value of `{self.avu_name}` should be a dictionary."
             )
         else:
             return check_metadata(
@@ -437,19 +428,20 @@ class MultipleField(Field):
         values (list): The possible values.
     """
 
-    def __init__(self, name: str, content: dict):
+    def __init__(self, name: str, content: dict, prefix: str):
         """Init a multiple-choice field.
 
         Args:
             name (str): Name of the field.
             content (dict): Contents of the JSON the field comes from.
+            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
 
         Raises:
             KeyError: When the 'multiple' or 'values' attributes are missing from `content`.
             ValueError: When the 'multiple' attribute of `content` is not boolean
                 or the 'values' attribute is not a list.
         """
-        super().__init__(name, content)
+        super().__init__(name, content, prefix)
         if self.type != "select":
             raise ValueError("The type of the field must be 'select'.")
 
@@ -505,7 +497,7 @@ class MultipleField(Field):
             # if it's a multiple-value multiple-choice in its own right
             not_acceptable = [x for x in value if x not in self.values]
             if len(not_acceptable) == len(value):
-                message = f"None of the values provided for `{self.flattened_name}` are valid."
+                message = f"None of the values provided for `{self.avu_name}` are valid."
                 if self.required:
                     raise ValueError(message)
                 else:
@@ -515,11 +507,11 @@ class MultipleField(Field):
                 not_acceptable_values = ", ".join(not_acceptable)
                 logging.warning(
                     "The following values for `%s` are not acceptable and will be ignored: %s",
-                    self.flattened_name,
+                    self.avu_name,
                     not_acceptable_values,
                 )
             return [
-                iRODSMeta(self.flattened_name, x, unit)
+                iRODSMeta(self.avu_name, x, unit)
                 for x in value
                 if x in self.values
             ]
@@ -527,26 +519,26 @@ class MultipleField(Field):
         # we have only one value
         if value in self.values:
             return [
-                iRODSMeta(self.flattened_name, value, unit)
+                iRODSMeta(self.avu_name, value, unit)
             ]  # the value is correct!
         if not self.required:
             # the value is not correct but the field is not required anyways
             logging.warning(
                 "The value for `%s` is not valid and will be ignored.",
-                self.flattened_name,
+                self.avu_name,
             )
             return None
         if self.default is not None:
             # the value is not correct but the field is required and there is a default
             logging.warning(
                 "The value for `%s` is not valid, the default value will be used instead.",
-                self.flattened_name,
+                self.avu_name,
             )
-            return [iRODSMeta(self.flattened_name, self.default, unit)]
+            return [iRODSMeta(self.avu_name, self.default, unit)]
         # the value is not correct but the field is required and there is no default
         raise ValueError(
             (
-                f"The value for `{self.flattened_name}` is not valid but the field "
+                f"The value for `{self.avu_name}` is not valid but the field "
                 "is required and there is no default."
             )
         )
