@@ -1,12 +1,16 @@
 """"Classes representing the different types of fields in a metadata schema."""
+from collections.abc import MutableMapping
 import logging
 import re
 from datetime import datetime, date, time
+from copy import deepcopy as copy
 
-from irods.meta import iRODSMeta
 import validators
 
-from mango_mdschema.helpers import check_metadata, bold
+from .exceptions import ValidationError, ConversionError
+from .helpers import bold
+
+logger = logging.getLogger("mango_mdschema")
 
 
 class Field:
@@ -14,35 +18,32 @@ class Field:
     Abstract base class representing a field of a metadata schema.
 
     Attributes:
-        name (str): The name of the field.
+        name (str): The (full) name of the field, i.e. with namespace prefix.
         type (str): The type of the field, defined within the subclass.
         required (bool): Whether the field is required.
         default (any, optional): The default value for the field, if it is required.
         repeatable (bool): Whether the field is repeatable.
-        prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
         description (str): Description of the criteria for the field.
     """
 
-    def __init__(self, name: str, content: dict, prefix: str):
+    def __init__(self, name: str, **params):
         """Class representing a field of a metadata schema.
 
         Args:
-            name (str): Name of the field, without flattening.
-            content (dict): The contents of the JSON object the field comes from.
-            prefix (str): Prefix to add to the field name to flatten it for the AVU.
+            name (str): Name of the field (with namespace prefix).
+            params (dict, optional): Additional parameters for the field.
 
         Raises:
-            KeyError: When the contents don't include a type.
+            ValueError: When the field type is not provided.
         """
         self.name = name
-        self.prefix = prefix
 
-        if "type" not in content:
-            raise KeyError("A field must have a type.")
-        self.type = content["type"]
-        self.required = "required" in content and content["required"]
-        self.default = content["default"] if "default" in content else None
-        self.repeatable = "repeatable" in content and content["repeatable"]
+        if "type" not in params:
+            raise ValueError(f"No type defined for field {name}.")
+        self.type = params.get("type")
+        self.required = params.get("required", False)
+        self.default = params.get("default", None)
+        self.repeatable = params.get("repeatable", False)
 
     @property
     def description(self):
@@ -65,260 +66,322 @@ class Field:
             ]
         )
 
-    @property
-    def avu_name(self):
-        """Get the flattened field name for AVU's."""
-        return f"{self.prefix}.{self.name}"
+    def validate(self, value, convert: bool = True):
+        """Validate the field value.
 
-    def create_avu(self, value, unit, verbose):
-        """Generate an iRODS AVU based on one or more values."""
-        raise NotImplementedError
+        Validation is a 2 step process: First the value is converted to it's
+        Python representation (if needed) and then it is validated.
+
+        The default implementation calls the `convert` and `assert_valid` methods
+        to perform the conversion and validation steps.
+
+        Args:
+            value: The field value to validate.
+            convert (bool, optional): Whether to convert the value to it's Python
+                representation before validating it. Defaults to True.
+
+        Returns:
+            Any: The cleaned value, if valid, or the default value, if required and empty.
+
+        Raises:
+            ValidationError: If the value is invalid.
+            ConversionError: If the value cannot be converted.
+        """
+        if self.is_empty(value):
+            if self.required and self.default is None:
+                raise ValidationError(
+                    f"Value is required for `{self.name}` and no default is provided",
+                    self.name,
+                )
+            if convert:
+                logger.info("Using default value for `%s`", self.name)
+                value = copy(self.default)
+        elif convert:
+            value = self.convert(value)
+        self.assert_valid(value)
+        return value
+
+    def assert_valid(self, value):
+        """Check if the field value is valid.
+
+        Default implementation throws an error if the value is empty and required.
+
+        Raises:
+            ValidationError: If the value is invalid.
+        """
+        if self.required and self.is_empty(value):
+            raise ValidationError(f"Value required for `{self.name}`", self.name)
+
+    def convert(self, value):
+        """Convert a value to it's Python representation.
+
+        This method is the first step in every validation. It coerces the
+        value to a correct datatype and raises ConversionError if that is
+        not possible.
+
+        This method is also used to convert the raw value after unflattening
+        the metadata from the iRODS AVU's.
+
+        Raises:
+            ConversionError: If the value cannot be converted.
+        """
+        return copy(value)
+
+    def is_empty(self, value):
+        """Check if a value is empty.
+
+        Args:
+        value: The value to check.
+
+        Returns: Whether the value is empty.
+        """
+        return value is None or value == "" or value == []
 
     def __str__(self):
         return self.description
 
-    @staticmethod
-    def create(name: str, content: dict, prefix: str):
-        """Field factory.
-
-        Args:
-            name (str): Name of the field, to initiate it.
-            content (dict): Contents of the JSON the field comes from.
-            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
-
-        Raises:
-            KeyError: When the JSON does not include a 'type' key.
-            ValueError: When the value of the 'type' is not supported.
-
-        Returns:
-            Field: A representation of the field itself.
-        """
-        if "type" not in content:
-            raise KeyError("A field should have a type.")
-        if content["type"] == "object":
-            return CompositeField(name, content, prefix)
-        if content["type"] == "select":
-            return MultipleField(name, content, prefix)
-        if content["type"] in SimpleField.text_options:
-            return SimpleField(name, content, prefix)
-        raise ValueError(f"The type of the '{name}' field is not valid.")
-
 
 class SimpleField(Field):
-    """Class representing a simple field.
+    """Base class for single-value fields."""
 
-    Attributes:
-        minimum (int or float, default): If `self.type` is 'integer' or 'float',
-            the minimum possible value.
-        maximum (int or float, default): If `self.type` is 'integer' or 'float',
-            the maximum possible value.
-        pattern (str): If `self.type` is 'text', 'email' or 'url',
-            the pattern for regex check.
-    """
 
-    text_options = [
-        "text",
-        "textarea",
-        "email",
-        "url",
-        "date",
-        "time",
-        "datetime-local",
-        "integer",
-        "float",
-        "checkbox",
-    ]
+class TextField(SimpleField):
+    """Class representing a text field."""
 
-    types = {
-        "integer": int,
-        "float": float,
-        "date": date,
-        "time": time,
-        "datetime-local": datetime,
-    }
+    def __init__(self, name: str, **params):
+        """Init a string field."""
+        super().__init__(name, **params)
+        self.max_length = params.get("max_length", None)
+        if self.type == "textarea":
+            self.pattern = None  # no pattern support for "textarea"
+        else:
+            self.pattern = params.get("pattern", None)
+            if self.pattern is not None:
+                self.pattern = f"^{self.pattern}$"
 
-    types_with_regex = ["text", "email", "url"]
-
-    minimum = None
-    maximum = None
-    pattern = None
-
-    def __init__(self, name: str, content: dict, prefix: str):
-        """Init simple field.
-
-        Args:
-            name (str): Name of the field.
-            content (dict): Contents of the JSON that the field comes from.
-            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
-
-        Raises:
-            ValueError: When the type of the field is not valid.
-        """
-        super().__init__(name, content, prefix)
-
-        if self.type not in SimpleField.text_options:
-            raise ValueError("The type of the field is not valid.")
-
-        if self.type in ["integer", "float"]:
-            self.converter = SimpleField.types[self.type]
-            self.minimum = (
-                self.converter(content["minimum"]) if "minimum" in content else None
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, str):
+            raise ValidationError(
+                f"Value `{self.name}` must be a string", self.name, value
             )
-            self.maximum = (
-                self.converter(content["maximum"]) if "maximum" in content else None
+        if self.max_length is not None and len(value) > int(self.max_length):
+            raise ValidationError(
+                f"String length of `{self.name}` exceeds maximum length of {self.max_length}",
+                self.name,
+                value,
             )
-        elif self.type in SimpleField.types_with_regex and "pattern" in content:
-            self.pattern = f'^{content["pattern"]}$'
+        if self.pattern is not None and not re.match(self.pattern, value):
+            raise ValidationError(
+                f"Value of `{self.name}` does not match pattern {self.pattern}",
+                self.name,
+                value,
+            )
+
+    def convert(self, value):
+        return str(value) if value is not None else value
 
     @property
     def description(self):
-        """Get description property of the field."""
+        """Modify description property for text fields."""
         extra = ""
-        if self.type in ["integer", "float"]:
-            if self.minimum is not None and self.maximum is not None:
-                extra = f"{self.type} between {self.minimum} and {self.maximum}."
-            elif self.minimum is not None:
-                extra = f"{self.type} larger than {self.minimum}."
-            elif self.maximum is not None:
-                extra = f"{self.type} smaller than {self.maximum}."
-        elif self.type in SimpleField.types_with_regex:
-            if self.pattern is not None:
-                extra = f"fully matching the following regex: \033[91m{self.pattern}\033[0m."
-
+        if self.pattern is not None:
+            extra = (
+                f"fully matching the following regex: \033[91m{self.pattern}\033[0m."
+            )
         return "\n".join([super().description, extra]) if extra else super().description
 
-    def _validate_number(self, value) -> str:
-        """Validate the value of an integer or float.
 
-        Args:
-            value (int | float | str): Value provided for a field that is an integer or a float.
+class EmailField(TextField):
+    """Class representing an email field."""
 
-        Returns:
-            str: The final value if validated, else False.
-        """
-        try:
-            value = self.converter(value)
-        except ValueError:
-            return False
-        if self.minimum and self.maximum:
-            return (
-                str(value)
-                if validators.between(value, min=self.minimum, max=self.maximum)
-                else False
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if validators.email(value) is not True:
+            raise ValidationError(
+                f"Value `{self.name}` must be a valid email", self.name, value
             )
-        elif self.minimum:
-            return str(value) if value >= self.minimum else False
-        elif self.maximum:
-            return str(value) if value <= self.maximum else False
+
+
+class UrlField(TextField):
+    """Class representing a URL field."""
+
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if validators.url(value) is not True:
+            raise ValidationError(
+                f"Value `{self.name}` must be a valid URL", self.name, value
+            )
+
+
+class BooleanField(SimpleField):
+    """Class representing a boolean field."""
+
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, bool):
+            raise ValidationError(
+                f"Value `{self.name}` must be a boolean", self.name, value
+            )
+
+    def convert(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            value = value.lower()
+            if value in ["true", "yes", "y", "1"]:
+                return True
+            if value in ["false", "no", "n", "0"]:
+                return False
+        raise ConversionError(
+            f"Cannot convert {value} to a bool for `{self.name}`", self.name, value
+        )
+
+
+class NumericField(SimpleField):
+    """Base class for numeric fields."""
+
+    def __init__(self, name: str, minimum=None, maximum=None, **params):
+        super().__init__(name, **params)
+        if self.type not in ["integer", "float"]:
+            raise NotImplementedError(
+                "NumericField only supports integer and float fields"
+            )
+        self.numeric_type = int if self.type == "integer" else float
+        self.minimum = self.numeric_type(minimum) if minimum is not None else None
+        self.maximum = self.numeric_type(maximum) if maximum is not None else None
+
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, int):
+            raise ValidationError(
+                f"Value `{self.name}` must be {self.type}", self.name, value
+            )
+        if self.minimum is not None and value < self.minimum:
+            raise ValidationError(
+                f"Value `{self.name}` must be greater than or equal to {self.minimum}",
+                self.name,
+                value,
+            )
+        if self.maximum is not None and value > self.maximum:
+            raise ValidationError(
+                f"Value `{self.name}` must be less than or equal to {self.maximum}",
+                self.name,
+                value,
+            )
+
+    def convert(self, value):
+        try:
+            return self.numeric_type(value)
+        except (ValueError, TypeError) as err:
+            raise ConversionError(
+                f"Cannot convert {value} to {self.type} for `{self.name}`",
+                self.name,
+                value,
+            ) from err
+
+    @property
+    def description(self):
+        """Modify description property for numeric field."""
+        if self.minimum is not None and self.maximum is not None:
+            extra = f"{self.type} between {self.minimum} and {self.maximum}."
+        elif self.minimum is not None:
+            extra = f"{self.type} larger than {self.minimum}."
+        elif self.maximum is not None:
+            extra = f"{self.type} smaller than {self.maximum}."
         else:
-            return str(value)
+            extra = None
+        return "\n".join([super().description, extra]) if extra else super().description
 
-    def _validate_datetime(self, value) -> str:
-        """Validate the value of a date, time or datetime field.
 
-        A date can be provided as `datetime.date` or something that can be converted to
-        it via `datetime.date.fromisoformat()` or `datetime.date.fromtimestamp()`.
-        A datetime can be provided as `datetime.datetime` or something that can be converted
-         to it via `datetime.datetime.fromisoformat()` or `datetime.datetime.fromtimestamp()`.
-        A time can be provided as `datetime.time` or something that can be converted to
-         it via `datetime.time.fromisoformat()`.
+class DateTimeField(SimpleField):
+    """Validator for datetime fields."""
 
-        Args:
-        value (date | time | datetime | str): The value of an AVU that should be
-            date, time, or datetime.
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, datetime):
+            raise ValidationError(
+                f"Value `{self.name}` must be a datetime", self.name, value
+            )
 
-        Returns:
-            str: The date, time or datetime in ISO format, or False if the input format
-                is not valid.
-        """
-        this_type = SimpleField.types[self.type]
+    def convert(self, value):
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.datetime.combine(value, datetime.time())
         if isinstance(value, str):
             try:
-                value = this_type.fromisoformat(value)
-            except ValueError:
-                if self.type != "time":
-                    try:
-                        value = this_type.fromtimestamp(value)
-                    except ValueError:
-                        pass
-        return this_type.isoformat(value) if isinstance(value, this_type) else False
+                if value.isnumeric():
+                    return datetime.fromtimestamp(float(value))
+                return datetime.fromisoformat(value)
+            except (ValueError, TypeError) as err:
+                raise ConversionError(
+                    f"Cannot convert {value} to a datetime for `{self.name}`",
+                    self.name,
+                    value,
+                ) from err
+        raise ConversionError(
+            f"Cannot convert {value} to a datetime for `{self.name}`", self.name, value
+        )
 
-    def validate(self, value: any) -> str:
-        """Validate a value provided for the AVU.
 
-        Args:
-            value (any): A single value provided for an AVU based on a simple field.
+class DateField(SimpleField):
+    """Validator for date fields."""
 
-        Returns:
-            str: The final, converted value, or `False` if it is not valid.
-        """
-        if self.type in ["integer", "float"]:
-            # validate as number if it's a number
-            return self._validate_number(value)
-        elif self.type in SimpleField.types_with_regex:
-            # check regex if appropriate
-            if self.pattern is not None and not re.match(self.pattern, value):
-                return False
-            # validate email (if regex passed)
-            if self.type == "email":
-                return value if validators.email(value) else False
-            # validate url (if regex passed)
-            elif self.type == "url":
-                return value if validators.url(value) else False
-        # validate dates, times and datetimes
-        elif self.type in ["date", "time", "datetime-local"]:
-            return self._validate_datetime(value)
-        # validate checkboxes
-        elif self.type == "checkbox":
-            return "true" if isinstance(value, bool) else False
-
-        # if nothing went wrong, just return the value (text that matched regex, textbox)
-        return str(value)
-
-    def create_avu(self, value: any, unit: str = None, verbose: bool = False):
-        if isinstance(value, list):
-            if not self.repeatable:
-                raise TypeError(
-                    (
-                        f"`{self.avu_name}` is not repeatable, "
-                        "a single value should be provided instead."
-                    )
-                )
-            valid_values = [x for x in value if self.validate(x)]
-            if len(valid_values) == 0:
-                return self.deal_with_invalid(value, unit)
-            elif len(valid_values) < len(value):
-                invalid_values = ", ".join([x for x in value if x not in valid_values])
-                logging.warning(
-                    "The following values provided for `%s` are not valid and will be ignored: %s.",
-                    self.avu_name,
-                    invalid_values,
-                )
-            return [iRODSMeta(self.avu_name, x, unit) for x in valid_values]
-        else:
-            validated_value = self.validate(value)
-            return (
-                [iRODSMeta(self.avu_name, validated_value, unit)]
-                if validated_value
-                else self.deal_with_invalid(value, unit)
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, date):
+            raise ValidationError(
+                f"Value `{self.name}` must be a date", self.name, value
             )
 
-    def deal_with_invalid(self, value, unit):  # pylint: disable=unused-argument
-        """Deal with invalid values."""
-        if not self.required:
-            logging.warning(
-                "The values provided for `%s` are not valid and will be ignored.",
-                self.avu_name,
+    def convert(self, value):
+        if isinstance(value, date):
+            return value
+        if isinstance(value, datetime):
+            return datetime.date()
+        if isinstance(value, str):
+            try:
+                if value.isnumeric():
+                    return date.fromtimestamp(float(value))
+                return date.fromisoformat(value)
+            except (ValueError, TypeError) as err:
+                raise ConversionError(
+                    f"Cannot convert {value} to a date for `{self.name}`",
+                    self.name,
+                    value,
+                ) from err
+        raise ConversionError(
+            f"Cannot convert {value} to a date for `{self.name}`", self.name, value
+        )
+
+
+class TimeField(SimpleField):
+    """Validator for time fields."""
+
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, time):
+            raise ValidationError(
+                f"Value `{self.name}` must be a time", self.name, value
             )
-            return [None]
-        if self.default:
-            logging.warning(
-                "The values provided for `%s` are not valid: the default will be used.",
-                self.avu_name,
-            )
-            return [iRODSMeta(self.avu_name, self.default, unit)]
-        raise ValueError(
-            f"None of the values provided for `{self.avu_name}` are valid."
+
+    def convert(self, value):
+        if isinstance(value, time):
+            return value
+        if isinstance(value, datetime):
+            return value.time()
+        if isinstance(value, str):
+            try:
+                return time.fromisoformat(value)
+            except (ValueError, TypeError) as err:
+                raise ConversionError(
+                    f"Cannot convert {value} to a time for `{self.name}`",
+                    self.name,
+                    value,
+                ) from err
+        raise ConversionError(
+            f"Cannot convert {value} to a time for `{self.name}`", self.name, value
         )
 
 
@@ -326,36 +389,35 @@ class CompositeField(Field):
     """Class representing a composite field.
 
     Attributes:
-    fields (dict of Field): Collection of subfields.
+    fields (dict of Field): Collection of subfields. Keys are the (local) names
+        of the subfields, values are the subfields themselves.
     """
 
-    def __init__(self, name: str, content: dict, prefix: str):
+    def __init__(self, name: str, fields: dict = None, **params):
         """Init a composite field.
 
         Args:
             name (str): Name of the field.
-            content (dict): Contents of the JSON the field comes from.
-            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
-
+            fields (dict, optional): Dictionary of subfields. Keys should the (local)
+                names of the subfields, values are the subfields themselves.
+            params (dict, optional): Additional parameters for the field.
         Raises:
-            ValueError: When the 'type' attribute of `content` is not 'object'.
-            KeyError: When the 'properties' attribute is missing from `content`.
-            TypeError: When the 'properties' attribute of `content` is not a dictionary.
+            ValueError: When no subfields are provided.
         """
-        super().__init__(name, content, prefix)
+        super().__init__(name, **params)
 
         if self.type != "object":
             raise ValueError("The type of the field must be 'object'.")
-        if "properties" not in content:
-            raise KeyError("A composite field requires a 'properties' attribute.")
-        if not isinstance(content["properties"], dict):
-            raise TypeError(
-                "The 'properties' attribute of a composite field must be a dictionary."
+        self.fields = fields if isinstance(fields, MutableMapping) else {}
+        if self.fields is None or len(self.fields) == 0:
+            raise ValueError("A composite field must have at least one subfield.")
+        if any(not field.name.startswith(self.name) for field in self.fields.values()):
+            raise ValueError(
+                f"All subfields of a composite field must have a name prefix `{name}`."
             )
-        self.fields = {k: Field.create(k, v, self.prefix) for k, v in content["properties"].items()}
         self.required_fields = {
-            subfield.name: subfield.default
-            for subfield in self.fields.values()
+            subfield_name: subfield.default
+            for subfield_name, subfield in self.fields.items()
             if subfield.required
         }
         if len(self.required_fields) > 0:
@@ -375,91 +437,85 @@ class CompositeField(Field):
             ]
         )
 
-    def create_avu(self, value: dict, unit: str = None, verbose: bool = False) -> list:
-        """Generate an iRODS AVU based on one or more values.
-
-        Args:
-            value (dict | list of dict): The dictionary with subfields for the composite field.
-            unit (str, default): The unit for the AVU. By default it is None.
-                It is a stringified integer when the field belongs to a composite field.
-            verbose (bool, optional): Whether warnings should be raised when fields are ignored.
-                See `schema.check_metadata()`.
-
-        Raises:
-            TypeError: When a list if provided while the field is not repeatable
-                or a dictionary is not provided.
-
-        Returns:
-            list of iRODSMeta: List of AVUs.
-        """
-        if isinstance(value, list):
-            if not self.repeatable:
-                raise TypeError(
-                    (
-                        f"`{self.avu_name}` is not repeatable, "
-                        "a dictionary should be provided instead."
-                    )
-                )
-            avus = [
-                check_metadata(self, x, verbose, CompositeField.get_unit(i + 1, unit))
-                for i, x in enumerate(value)
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, MutableMapping):
+            raise ValidationError(
+                f"Value `{self.name}` must be a dict", self.name, value
+            )
+        if logger.isEnabledFor(logging.INFO):
+            # check for missing non-required fields
+            missing_non_required = [
+                key
+                for key, subfield in self.fields.items()
+                if not subfield.required and key not in value.keys()
             ]
-            return [avu for avu_list in avus for avu in avu_list]
-        elif not isinstance(value, dict):
-            raise TypeError(
-                f"The value of `{self.avu_name}` should be a dictionary."
+            logger.info(
+                "Missing non-required fields in %s: %s.",
+                self.name,
+                ", ".join(missing_non_required),
             )
-        else:
-            return check_metadata(
-                self, value, verbose, CompositeField.get_unit(1, unit)
-            )
+        for key, val in value.items():
+            if key not in self.fields.keys():
+                raise ValidationError(
+                    f"Unknown field {key} in `{self.name}`", self.name
+                )
+            self.fields[key].assert_valid(val)
 
-    @staticmethod
-    def get_unit(this_unit: int, parent_unit: str = None):
-        """Get the unit for a subfield. Used recursively."""
-        return str(this_unit) if parent_unit is None else f"{parent_unit}.{this_unit}"
+    def convert(self, value):
+        if self.is_empty(value):
+            return {}
+        if not isinstance(value, MutableMapping) and hasattr(value, "to_dict"):
+            value = value.to_dict()
+        if isinstance(value, MutableMapping):
+            if logger.isEnabledFor(logging.INFO):
+                # check for unknown fields
+                unknown_fields = [
+                    key for key in value.keys() if key not in self.fields.keys()
+                ]
+                logger.info(
+                    "Following fields in %s do not belong to the schema and will be ignored: %s.",
+                    self.name,
+                    ", ".join(unknown_fields),
+                )
+            return {
+                key: self.fields[key].convert(val)
+                for key, val in value.items()
+                if key in self.fields.keys()  # remove unknown fields
+            }
+        raise ConversionError(
+            (
+                f"Can't convert composite field `{self.name}` to dict. "
+                "Value must be a dict or an object with a to_dict() method"
+            ),
+            self.name,
+            value,
+        )
 
 
 class MultipleField(Field):
-    """Class representing a multiple-choice field.
+    """Class representing a multiple-choice field."""
 
-    Attributes:
-        multiple (bool): Whether more than one value can be given.
-        values (list): The possible values.
-    """
-
-    def __init__(self, name: str, content: dict, prefix: str):
+    def __init__(self, name: str, multiple: bool = False, values=None, **params):
         """Init a multiple-choice field.
 
         Args:
             name (str): Name of the field.
-            content (dict): Contents of the JSON the field comes from.
-            prefix (str): Prefix to add to the name of the field to flatten it for the AVU.
+            multiple (bool, optional): Whether more than one value can be given.
+            values (list, optional): The possible values.
+            params (dict, optional): Additional parameters for the field.
 
         Raises:
-            KeyError: When the 'multiple' or 'values' attributes are missing from `content`.
-            ValueError: When the 'multiple' attribute of `content` is not boolean
-                or the 'values' attribute is not a list.
+            ValueError: When no values are provided.
         """
-        super().__init__(name, content, prefix)
-        if self.type != "select":
-            raise ValueError("The type of the field must be 'select'.")
-
-        if "multiple" not in content:
-            raise KeyError(
-                "A multiple-choice field requires a 'multiple' boolean attribute."
+        super().__init__(name, **params)
+        if not isinstance(values, list) or len(values) == 0:
+            raise ValueError(
+                f"Invalid 'values' for select field {name}, must be a non-empty list."
             )
-        if not isinstance(content["multiple"], bool):
-            raise ValueError("The 'multiple' attribute must be boolean.")
-
-        self.multiple = content["multiple"]
-
-        if "values" not in content:
-            raise KeyError("A multiple-choice field requires a 'values' attribute.")
-        if not isinstance(content["values"], list):
-            raise ValueError("The 'values' attribute must be a list.")
-
-        self.values = content["values"]
+        self.multiple = multiple
+        self.choices = [str(v) for v in values]
+        self.multiple = multiple
 
     @property
     def description(self):
@@ -468,77 +524,93 @@ class MultipleField(Field):
             [
                 super().description,
                 f'Choose {"at least" if self.multiple else "only"} one of the following values:',
-                "- " + "\n- ".join(self.values),
+                "- " + "\n- ".join(self.choices),
             ]
         )
 
-    def create_avu(self, value: any, unit: str = None, verbose: bool = False) -> list:
-        """Generate an iRODS AVU based on one or more values.
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if self.multiple and not isinstance(value, list):
+            raise ValidationError(
+                f"Value `{self.name}` must be a list", self.name, value
+            )
+        if self.multiple:
+            if not all(x in self.choices for x in value):
+                raise ValidationError(
+                    f"Value `{self.name}` must be a list of values in {self.choices}",
+                    self.name,
+                    value,
+                )
+        else:
+            if value not in self.choices:
+                raise ValidationError(
+                    f"Value `{self.name}` must be one of {self.choices}",
+                    self.name,
+                    value,
+                )
 
-        Args:
-            value (any): A list of values or one value of the metadata.
-            unit (str, optional): The unit for the AVU. By default it is None.
-                It is a stringified integer when the field belongs to a composite field.
-            verbose (bool, optional): Not implemented
-
-        Raises:
-            ValueError: When a single-value multiple-choice field is given multiple values
-                or none of the provided values are valid.
-
-        Returns:
-            list of iRODSMeta or None: The AVUS with the valid values, or None if
-                the values are invalid but the field is not required.
-        """
+    def convert(self, value):
         if isinstance(value, list):  # if we have multiple values
             if not self.multiple:
-                raise ValueError(
-                    "A single-value multiple-choice field can only receive one value."
+                raise ValidationError(
+                    f"Single value expected for `{self.name}` must be a single value, not a list",
+                    self.name,
+                    value,
                 )
-            # if it's a multiple-value multiple-choice in its own right
-            not_acceptable = [x for x in value if x not in self.values]
-            if len(not_acceptable) == len(value):
-                message = f"None of the values provided for `{self.avu_name}` are valid."
+            if len(value) == 0:
+                return []
+            values = [str(v) for v in value]
+            if all(v not in self.choices for v in values):
                 if self.required:
-                    raise ValueError(message)
-                else:
-                    logging.warning(message)
-                    return None
-            elif len(not_acceptable) > 0:
-                not_acceptable_values = ", ".join(not_acceptable)
-                logging.warning(
-                    "The following values for `%s` are not acceptable and will be ignored: %s",
-                    self.avu_name,
-                    not_acceptable_values,
-                )
-            return [
-                iRODSMeta(self.avu_name, x, unit)
-                for x in value
-                if x in self.values
-            ]
+                    raise ValidationError(
+                        f"No valid values in `{self.name}`. Allowed options are {self.choices}",
+                        self.name,
+                        value,
+                    )
+                return []
+            return [v for v in values if v in self.choices]
+        # if we have only one value
+        value = str(value)
+        return value if value in self.choices else None
 
-        # we have only one value
-        if value in self.values:
-            return [
-                iRODSMeta(self.avu_name, value, unit)
-            ]  # the value is correct!
-        if not self.required:
-            # the value is not correct but the field is not required anyways
-            logging.warning(
-                "The value for `%s` is not valid and will be ignored.",
-                self.avu_name,
-            )
-            return None
-        if self.default is not None:
-            # the value is not correct but the field is required and there is a default
-            logging.warning(
-                "The value for `%s` is not valid, the default value will be used instead.",
-                self.avu_name,
-            )
-            return [iRODSMeta(self.avu_name, self.default, unit)]
-        # the value is not correct but the field is required and there is no default
-        raise ValueError(
-            (
-                f"The value for `{self.avu_name}` is not valid but the field "
-                "is required and there is no default."
-            )
+
+class RepeatableField(Field):
+    """Class decorating a field to make it repeatable."""
+
+    def __init__(self, field: Field, **params):
+        """Init a repeatable field.
+
+        Args:
+            field (Field): The field to repeat.
+            params (dict, optional): Additional parameters for the field.
+        """
+        super().__init__(
+            field.name,
+            type=field.type,
+            default=field.default,
+            required=field.required,
+            repeatable=True,
+            **params,
         )
+        if not field.repeatable:
+            raise ValueError(f"Field {field.name} must be repeatable.")
+        self.field = field
+
+    @property
+    def description(self):
+        """Get description property of the wrapped field."""
+        return self.field.description
+
+    def assert_valid(self, value):
+        super().assert_valid(value)
+        if not isinstance(value, list):
+            raise ValidationError(
+                f"Value `{self.name}` must be a list", self.name, value
+            )
+        for val in value:
+            self.field.assert_valid(val)
+
+    def convert(self, value):
+        if isinstance(value, list):
+            return [self.field.convert(val) for val in value]
+        return [self.field.convert(value)]
