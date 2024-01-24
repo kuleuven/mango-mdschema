@@ -521,13 +521,13 @@ class CompositeField(Field):
 class MultipleField(Field):
     """Class representing a multiple-choice field."""
 
-    def __init__(self, name: str, multiple: bool = False, values=None, **params):
+    def __init__(self, name: str, multiple: bool = False, choices=None, **params):
         """Init a multiple-choice field.
 
         Args:
             name (str): Name of the field.
             multiple (bool, optional): Whether more than one value can be given.
-            values (list, optional): The possible values.
+            choices (list, optional): The possible values (alias for `values`).
             params (dict, optional): Additional parameters for the field.
 
         Raises:
@@ -535,12 +535,18 @@ class MultipleField(Field):
         """
         params.setdefault("type", "select")
         super().__init__(name, **params)
-        if not isinstance(values, list) or len(values) == 0:
+        if params.get("values") is not None and choices is None:
+            choices = params.get("values")
+        elif choices is None:
             raise ValueError(
-                f"Invalid 'values' for select field {name}, must be a non-empty list."
+                f"No 'values' or 'choices' provided for select field {name}."
+            )
+        if not isinstance(choices, list) or len(choices) == 0:
+            raise ValueError(
+                f"Invalid 'choices' for select field {name}, must be a non-empty list."
             )
         self.multiple = multiple
-        self.choices = [str(v) for v in values]
+        self.choices = [str(v) for v in choices]
         self.multiple = multiple
 
     @property
