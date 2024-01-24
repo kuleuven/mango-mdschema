@@ -236,3 +236,12 @@ def check_metadata(
 def bold(string: str) -> str:
     """Return the string in bold. Useful for printing."""
     return f"\033[1m{string}\033[0m"
+
+
+def is_number(value: str) -> bool:
+    """Check if a string is a number (float or int)."""
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False

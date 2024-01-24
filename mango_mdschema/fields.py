@@ -9,7 +9,7 @@ import validators
 
 from .constants import NAME_DELIMITER
 from .exceptions import ValidationError, ConversionError
-from .helpers import bold
+from .helpers import bold, is_number
 
 logger = logging.getLogger("mango_mdschema")
 
@@ -114,7 +114,7 @@ class Field:
                     f"Value is required for `{self.name}` and no default is provided",
                     self.name,
                 )
-            if convert:
+            if convert and self.default is not None:
                 logger.info("Using default value for `%s`", self.name)
                 value = copy(self.default)
         elif convert:
@@ -177,24 +177,28 @@ class TextField(SimpleField):
             self.pattern = None  # no pattern support for "textarea"
         else:
             self.pattern = params.get("pattern", None)
-            if self.pattern is not None:
+            if (
+                self.pattern is not None
+                and not self.pattern.startswith("^")
+                and not self.pattern.endswith("$")
+            ):
                 self.pattern = f"^{self.pattern}$"
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, str):
+        if not isinstance(value, str) and value is not None:
             raise ValidationError(
                 f"Value `{self.name}` must be a string", self.name, value
             )
         if self.max_length is not None and len(value) > int(self.max_length):
             raise ValidationError(
-                f"String length of `{self.name}` exceeds maximum length of {self.max_length}",
+                f"Length of `{self.name}` exceeds max length of {self.max_length}: {value}",
                 self.name,
                 value,
             )
         if self.pattern is not None and not re.match(self.pattern, value):
             raise ValidationError(
-                f"Value of `{self.name}` does not match pattern {self.pattern}",
+                f"Value of `{self.name}` does not match pattern {self.pattern}: {value}",
                 self.name,
                 value,
             )
@@ -222,9 +226,9 @@ class EmailField(TextField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if validators.email(value) is not True:
+        if value is not None and validators.email(value) is not True:
             raise ValidationError(
-                f"Value `{self.name}` must be a valid email", self.name, value
+                f"Value `{self.name}` must be a valid email: {value}", self.name, value
             )
 
 
@@ -237,7 +241,7 @@ class UrlField(TextField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if validators.url(value) is not True:
+        if value is not None and validators.url(value) is not True:
             raise ValidationError(
                 f"Value `{self.name}` must be a valid URL", self.name, value
             )
@@ -252,13 +256,13 @@ class BooleanField(SimpleField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, bool):
+        if not isinstance(value, bool) and value is not None:
             raise ValidationError(
                 f"Value `{self.name}` must be a boolean", self.name, value
             )
 
     def convert(self, value):
-        if isinstance(value, bool):
+        if isinstance(value, bool) or value is None:
             return value
         if isinstance(value, str):
             value = value.lower()
@@ -286,7 +290,7 @@ class NumericField(SimpleField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, int):
+        if not isinstance(value, self.numeric_type):
             raise ValidationError(
                 f"Value `{self.name}` must be {self.type}", self.name, value
             )
@@ -305,7 +309,7 @@ class NumericField(SimpleField):
 
     def convert(self, value):
         try:
-            return self.numeric_type(value)
+            return self.numeric_type(value) if value is not None else value
         except (ValueError, TypeError) as err:
             raise ConversionError(
                 f"Cannot convert {value} to {self.type} for `{self.name}`",
@@ -336,30 +340,26 @@ class DateTimeField(SimpleField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, datetime):
+        if not isinstance(value, datetime) and value is not None:
             raise ValidationError(
                 f"Value `{self.name}` must be a datetime", self.name, value
             )
 
     def convert(self, value):
-        if isinstance(value, datetime):
+        if isinstance(value, datetime) or value is None:
             return value
         if isinstance(value, date):
             return datetime.datetime.combine(value, datetime.time())
-        if isinstance(value, str):
-            try:
-                if value.isnumeric():
-                    return datetime.fromtimestamp(float(value))
-                return datetime.fromisoformat(value)
-            except (ValueError, TypeError) as err:
-                raise ConversionError(
-                    f"Cannot convert {value} to a datetime for `{self.name}`",
-                    self.name,
-                    value,
-                ) from err
-        raise ConversionError(
-            f"Cannot convert {value} to a datetime for `{self.name}`", self.name, value
-        )
+        try:
+            if is_number(value):
+                return datetime.fromtimestamp(float(value))
+            return datetime.fromisoformat(str(value))
+        except (ValueError, TypeError) as err:
+            raise ConversionError(
+                f"Cannot convert {value} to a datetime for `{self.name}`",
+                self.name,
+                value,
+            ) from err
 
 
 class DateField(SimpleField):
@@ -371,30 +371,26 @@ class DateField(SimpleField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, date):
+        if value is not None and (not isinstance(value, date) or isinstance(value, datetime)):
             raise ValidationError(
                 f"Value `{self.name}` must be a date", self.name, value
             )
 
     def convert(self, value):
-        if isinstance(value, date):
-            return value
         if isinstance(value, datetime):
-            return datetime.date()
-        if isinstance(value, str):
-            try:
-                if value.isnumeric():
-                    return date.fromtimestamp(float(value))
-                return date.fromisoformat(value)
-            except (ValueError, TypeError) as err:
-                raise ConversionError(
-                    f"Cannot convert {value} to a date for `{self.name}`",
-                    self.name,
-                    value,
-                ) from err
-        raise ConversionError(
-            f"Cannot convert {value} to a date for `{self.name}`", self.name, value
-        )
+            return value.date()
+        if isinstance(value, date) or value is None:
+            return value
+        try:
+            if is_number(value):
+                return date.fromtimestamp(float(value))
+            return date.fromisoformat(str(value))
+        except (ValueError, TypeError) as err:
+            raise ConversionError(
+                f"Cannot convert {value} to a date for `{self.name}`",
+                self.name,
+                value,
+            ) from err
 
 
 class TimeField(SimpleField):
@@ -406,13 +402,13 @@ class TimeField(SimpleField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, time):
+        if not isinstance(value, time) and value is not None:
             raise ValidationError(
                 f"Value `{self.name}` must be a time", self.name, value
             )
 
     def convert(self, value):
-        if isinstance(value, time):
+        if isinstance(value, time) or value is None:
             return value
         if isinstance(value, datetime):
             return value.time()
@@ -466,6 +462,7 @@ class CompositeField(Field):
         }
         if len(self.required_fields) > 0:
             self.required = True
+            self.default = self.required_fields
 
     @property
     def description(self):
@@ -500,7 +497,7 @@ class CompositeField(Field):
                 ", ".join(missing_non_required),
             )
         for key, val in value.items():
-            if key not in self.fields.keys():
+            if key not in self.fields:
                 raise ValidationError(
                     f"Unknown field {key} in `{self.name}`", self.name
                 )
@@ -525,7 +522,7 @@ class CompositeField(Field):
             return {
                 key: self.fields[key].convert(val)
                 for key, val in value.items()
-                if key in self.fields.keys()  # remove unknown fields
+                if key in self.fields  # remove unknown fields
             }
         raise ConversionError(
             (
@@ -595,6 +592,8 @@ class MultipleField(Field):
 
     def assert_valid(self, value):
         super().assert_valid(value)
+        if self.is_empty(value):
+            return
         if self.multiple and not isinstance(value, list):
             raise ValidationError(
                 f"Value `{self.name}` must be a list", self.name, value
@@ -635,7 +634,7 @@ class MultipleField(Field):
                 return []
             return [v for v in values if v in self.choices]
         # if we have only one value
-        value = str(value)
+        value = str(value) if value is not None else None
         return value if value in self.choices else None
 
 
@@ -667,17 +666,17 @@ class RepeatableField(Field):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if not isinstance(value, list):
+        if not isinstance(value, list) and value is not None:
             raise ValidationError(
                 f"Value `{self.name}` must be a list", self.name, value
             )
-        for val in value:
+        for val in value if value is not None else []:
             self.field.assert_valid(val)
 
     def convert(self, value):
         if isinstance(value, list):
             return [self.field.convert(val) for val in value]
-        return [self.field.convert(value)]
+        return [self.field.convert(value)] if value is not None else []
 
     @Field.namespace.setter
     def namespace(self, value):
