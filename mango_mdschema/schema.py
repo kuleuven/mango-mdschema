@@ -260,10 +260,11 @@ class Schema:
             ConversionError: If data cannot be converted to the expected type.
         """
         # get all AVUs linked to this metadata schema
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
         avus = [
             avu
             for avu in item.metadata.items()
-            if avu.name.startswith(f"{self.prefix}{self.delimiter}{self.name}")
+            if avu.name.startswith(prefix)
         ]
         # convert AVUs to a dictionary
         metadata = self.from_avus(avus)
@@ -289,7 +290,7 @@ class Schema:
             ConversionError: If data cannot be converted to the expected type.
         """
         metadata = self.validate(metadata, convert)
-        prefix = f"{self.prefix}{self.delimiter}{self.name}"
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
         return list(map(lambda x: flattened_to_avu(x, prefix)), flatten(metadata))
 
     def from_avus(self, avus: list[iRODSMeta]) -> MutableMapping:
@@ -305,7 +306,7 @@ class Schema:
             ValidationError: If data is invalid.
             ConversionError: If data cannot be converted to the expected type.
         """
-        prefix = f"{self.prefix}{self.delimiter}{self.name}"
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
         unflattened = unflatten(list(map(lambda x: flattend_from_avu(x, prefix), avus)))
         return self.root.convert(unflattened)
 
