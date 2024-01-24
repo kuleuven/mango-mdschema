@@ -149,7 +149,7 @@ class TextField(SimpleField):
     """Class representing a text field."""
 
     def __init__(self, name: str, **params):
-        """Init a string field."""
+        params.setdefault("type", "text")
         super().__init__(name, **params)
         self.max_length = params.get("max_length", None)
         if self.type == "textarea":
@@ -195,6 +195,10 @@ class TextField(SimpleField):
 class EmailField(TextField):
     """Class representing an email field."""
 
+    def __init__(self, name: str, **params):
+        params.setdefault("type", "email")
+        super().__init__(name, **params)
+
     def assert_valid(self, value):
         super().assert_valid(value)
         if validators.email(value) is not True:
@@ -206,6 +210,10 @@ class EmailField(TextField):
 class UrlField(TextField):
     """Class representing a URL field."""
 
+    def __init__(self, name: str, **params):
+        params.setdefault("type", "url")
+        super().__init__(name, **params)
+
     def assert_valid(self, value):
         super().assert_valid(value)
         if validators.url(value) is not True:
@@ -216,6 +224,10 @@ class UrlField(TextField):
 
 class BooleanField(SimpleField):
     """Class representing a boolean field."""
+
+    def __init__(self, name: str, **params):
+        params.setdefault("type", "checkbox")
+        super().__init__(name, **params)
 
     def assert_valid(self, value):
         super().assert_valid(value)
@@ -297,6 +309,10 @@ class NumericField(SimpleField):
 class DateTimeField(SimpleField):
     """Validator for datetime fields."""
 
+    def __init__(self, name: str, **params):
+        params.setdefault("type", "datetime-local")
+        super().__init__(name, **params)
+
     def assert_valid(self, value):
         super().assert_valid(value)
         if not isinstance(value, datetime):
@@ -328,6 +344,10 @@ class DateTimeField(SimpleField):
 class DateField(SimpleField):
     """Validator for date fields."""
 
+    def __init__(self, name: str, **params):
+        params.setdefault("type", "date")
+        super().__init__(name, **params)
+
     def assert_valid(self, value):
         super().assert_valid(value)
         if not isinstance(value, date):
@@ -358,6 +378,10 @@ class DateField(SimpleField):
 
 class TimeField(SimpleField):
     """Validator for time fields."""
+
+    def __init__(self, name: str, **params):
+        params.setdefault("type", "time")
+        super().__init__(name, **params)
 
     def assert_valid(self, value):
         super().assert_valid(value)
@@ -404,6 +428,7 @@ class CompositeField(Field):
         Raises:
             ValueError: When no subfields are provided.
         """
+        params.setdefault("type", "object")
         super().__init__(name, **params)
 
         if self.type != "object":
@@ -508,6 +533,7 @@ class MultipleField(Field):
         Raises:
             ValueError: When no values are provided.
         """
+        params.setdefault("type", "select")
         super().__init__(name, **params)
         if not isinstance(values, list) or len(values) == 0:
             raise ValueError(
@@ -592,9 +618,8 @@ class RepeatableField(Field):
             repeatable=True,
             **params,
         )
-        if not field.repeatable:
-            raise ValueError(f"Field {field.name} must be repeatable.")
         self.field = field
+        self.field.repeatable = True
 
     @property
     def description(self):
