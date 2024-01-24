@@ -8,6 +8,7 @@ from irods.data_object import iRODSDataObject
 from irods.collection import iRODSCollection
 from irods.meta import AVUOperation, iRODSMeta
 
+from .constants import NAME_DELIMITER
 from .helpers import bold, flattend_from_avu, flattened_to_avu, flatten, unflatten
 from .fields import (
     TextField,
@@ -56,9 +57,6 @@ class Schema:
         "object": CompositeField,
     }
 
-    # Name delimiter to use when flattening the metadata
-    delimiter = "."
-
     def __init__(self, path: str, prefix: str = "mgs"):
         """Init a Schema object from a JSON file.
 
@@ -104,21 +102,21 @@ class Schema:
         self.title = schema["title"] if schema["title"] else self.name
         self.root = CompositeField(
             self.name,
-            fields={
-                name: self.create_field(name=name, parent=self.name, **params)
+            fields=[
+                self.create_field(name=name, parent=self.name, **params)
                 for name, params in schema["properties"].items()
-            },
+            ],
         )
-        self.required_fields = {
-            field.name: field.default
-            for field in self.fields.values()
-            if field.required
-        }
 
     @property
     def fields(self):
         """Get the fields of the schema."""
         return self.root.fields
+
+    @property
+    def required_fields(self):
+        """Get the required fields of the schema."""
+        return self.root.required_fields
 
     @classmethod
     def create_field(cls, name: str, parent: str, **params):
@@ -135,7 +133,7 @@ class Schema:
         Returns:
             Field: The field.
         """
-        name = f"{parent}{cls.delimiter}{name}"
+        name = NAME_DELIMITER.join([parent, name])
         if "type" not in params:
             raise KeyError(f"Field {name} should have a type.")
         if params["type"] not in cls.field_types:
@@ -145,12 +143,10 @@ class Schema:
 
         if field_class == CompositeField:
             # Create subfields for composite field
-            params["fields"] = {
-                subfield_name: cls.create_field(
-                    name=subfield_name, parent=name, **subfield_params
-                )
+            params["fields"] = [
+                cls.create_field(name=subfield_name, parent=name, **subfield_params)
                 for subfield_name, subfield_params in params["properties"].items()
-            }
+            ]
 
         field = field_class(name, **params)
         # Decorate with RepeatableField if necessary
@@ -216,7 +212,7 @@ class Schema:
             ValidationError: If data is invalid.
             ConversionError: If data cannot be converted to the expected type.
         """
-        avu_version_name = f"{self.prefix}.__version__"
+        avu_version_name = NAME_DELIMITER.join([self.prefix, self.name, "__version__"])
         # report if data is annotated with a previous version
         existing_mdschema = avu_version_name in item.metadata
         if existing_mdschema and item.metadata[avu_version_name].value != self.version:
@@ -229,10 +225,9 @@ class Schema:
                 self.name,
             )
         # delete existing AVUs linked to this metadata and warn in that case
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
         existing_avus = [
-            avu
-            for avu in item.metadata.items()
-            if avu.name.startswith(f"{self.prefix}{self.delimiter}{self.name}")
+            avu for avu in item.metadata.items() if avu.name.startswith(prefix)
         ]
         item.metadata.apply_atomic_operations(
             *[AVUOperation(operation="remove", avu=x) for x in existing_avus]

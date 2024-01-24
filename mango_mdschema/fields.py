@@ -7,6 +7,7 @@ from copy import deepcopy as copy
 
 import validators
 
+from .constants import NAME_DELIMITER
 from .exceptions import ValidationError, ConversionError
 from .helpers import bold
 
@@ -44,6 +45,26 @@ class Field:
         self.required = params.get("required", False)
         self.default = params.get("default", None)
         self.repeatable = params.get("repeatable", False)
+
+    @property
+    def basename(self):
+        """Get the basename of the field name."""
+        return self.name.split(NAME_DELIMITER)[-1]
+
+    @basename.setter
+    def basename(self, value):
+        """Set the basename of the field name."""
+        self.name = f"{self.namespace}{NAME_DELIMITER}{value}"
+
+    @property
+    def namespace(self):
+        """Get the namespace (aka prefix) of the field name."""
+        return NAME_DELIMITER.join(self.name.split(NAME_DELIMITER)[:-1])
+
+    @namespace.setter
+    def namespace(self, value):
+        """Set the namespace (aka prefix) of the field name."""
+        self.name = f"{value}{NAME_DELIMITER}{self.basename}"
 
     @property
     def description(self):
@@ -417,13 +438,12 @@ class CompositeField(Field):
         of the subfields, values are the subfields themselves.
     """
 
-    def __init__(self, name: str, fields: dict = None, **params):
+    def __init__(self, name: str, fields: list = None, **params):
         """Init a composite field.
 
         Args:
             name (str): Name of the field.
-            fields (dict, optional): Dictionary of subfields. Keys should the (local)
-                names of the subfields, values are the subfields themselves.
+            fields (list, optional): List of subfields.
             params (dict, optional): Additional parameters for the field.
         Raises:
             ValueError: When no subfields are provided.
@@ -433,16 +453,15 @@ class CompositeField(Field):
 
         if self.type != "object":
             raise ValueError("The type of the field must be 'object'.")
-        self.fields = fields if isinstance(fields, MutableMapping) else {}
+        self.fields = {field.basename: field for field in fields} if fields else {}
         if self.fields is None or len(self.fields) == 0:
             raise ValueError("A composite field must have at least one subfield.")
-        if any(not field.name.startswith(self.name) for field in self.fields.values()):
-            raise ValueError(
-                f"All subfields of a composite field must have a name prefix `{name}`."
-            )
+        # make sure all subfields have correct name prefix
+        for subfield in self.fields.values():
+            subfield.namespace = self.name
         self.required_fields = {
-            subfield_name: subfield.default
-            for subfield_name, subfield in self.fields.items()
+            subfield_basename: subfield.default
+            for subfield_basename, subfield in self.fields.items()
             if subfield.required
         }
         if len(self.required_fields) > 0:
@@ -516,6 +535,20 @@ class CompositeField(Field):
             self.name,
             value,
         )
+
+    @Field.namespace.setter
+    def namespace(self, value):
+        """Update namespace of subfields when namespace of composite field is updated."""
+        self.name = f"{value}{NAME_DELIMITER}{self.basename}"
+        for subfield in self.fields.values():
+            subfield.namespace = self.name
+
+    @Field.basename.setter
+    def basename(self, value):
+        """Update namespace of subfields when basename of composite field is updated."""
+        self.name = f"{self.namespace}{NAME_DELIMITER}{value}"
+        for subfield in self.fields.values():
+            subfield.namespace = self.name
 
 
 class MultipleField(Field):
@@ -645,3 +678,13 @@ class RepeatableField(Field):
         if isinstance(value, list):
             return [self.field.convert(val) for val in value]
         return [self.field.convert(value)]
+
+    @Field.namespace.setter
+    def namespace(self, value):
+        """Update namespace of wrapped field when namespace of repeatable field is updated."""
+        self.field.namespace = value
+
+    @Field.basename.setter
+    def basename(self, value):
+        """Update namespace of wrapped field when basename of repeatable field is updated."""
+        self.field.basename = value
