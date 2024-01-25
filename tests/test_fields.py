@@ -176,6 +176,7 @@ class TestFields(unittest.TestCase):
         field = CompositeField("composite2", fields=fields, default={"subfield4": now})
         self.assertTrue(field.required)
         self.assertEqual(field.default, {"subfield3": "xyz", "subfield4": now})
+        self.assertEqual(field.required_fields, {"subfield4": subfield4.default})
         self.assertEqual(subfield4.default, now)
         field.default = None
         self.assertIsNone(field.default)
@@ -183,6 +184,18 @@ class TestFields(unittest.TestCase):
         field.default = {"subfield3": "abc", "subfield4": None}
         self.assertEqual(field.default, {"subfield3": "abc"})
         self.assertEqual(subfield3.default, "abc")
+        field.required = False
+        self.assertFalse(field.required)
+        self.assertFalse(subfield4.required)
+        self.assertEqual(field.required_fields, {})
+        field.required = True
+        self.assertTrue(field.required)
+        self.assertTrue(subfield3.required)
+        self.assertTrue(subfield4.required)
+        self.assertEqual(
+            field.required_fields,
+            {"subfield4": subfield4.default, "subfield3": subfield3.default},
+        )
 
     def test_multiple_field(self):
         field = MultipleField(

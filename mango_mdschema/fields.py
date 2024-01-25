@@ -481,13 +481,28 @@ class CompositeField(Field):
         if "default" in params:
             self.default = params.get("default", None)
 
-        self.required_fields = {
+    @property
+    def required(self):
+        """Override required property of super to get required from subfields"""
+        return any(subfield.required for subfield in self.fields.values())
+
+    @required.setter
+    def required(self, value):
+        """Set required property recursively on all subfields."""
+        if self.fields is None or len(self.fields) == 0:
+            return
+        logger.warning("Setting required to %s for all subfields of %s!", value, self.name)
+        for subfield in self.fields.values():
+            subfield.required = value
+
+    @property
+    def required_fields(self):
+        """Get the required fields of the composite field."""
+        return {
             subfield_basename: subfield.default
             for subfield_basename, subfield in self.fields.items()
             if subfield.required
         }
-        if len(self.required_fields) > 0:
-            self.required = True
 
     @property
     def default(self):
