@@ -77,6 +77,16 @@ class Field:
         self._name = f"{value}{NAME_DELIMITER}{self.basename}"
 
     @property
+    def default(self):
+        """Get the default value of the field."""
+        return self._default if self._default is not None else None
+
+    @default.setter
+    def default(self, value):
+        """Set the default value of the field."""
+        self._default = value
+
+    @property
     def description(self):
         """Get description property of the field."""
         if not self.required:
@@ -126,7 +136,7 @@ class Field:
                 )
             if convert and self.default is not None:
                 logger.info("Using default value for `%s`", self.name)
-                value = copy(self.default)
+                value = self.convert(self.default)
         elif convert:
             value = self.convert(value)
         self.assert_valid(value)
@@ -455,6 +465,7 @@ class CompositeField(Field):
             ValueError: When no subfields are provided.
         """
         params.setdefault("type", "object")
+        self.fields = {}
         super().__init__(name, **params)
 
         if self.type != "object":
@@ -473,6 +484,40 @@ class CompositeField(Field):
         if len(self.required_fields) > 0:
             self.required = True
             self.default = self.required_fields
+
+    @property
+    def default(self):
+        """Override default property of super to get defaults from subfields"""
+        if self.fields is None or len(self.fields) == 0:
+            return None
+        defaults = {
+            subfield_basename: subfield.default
+            for subfield_basename, subfield in self.fields.items()
+            if subfield.default is not None
+        }
+        return defaults if len(defaults) > 0 else None
+
+    @default.setter
+    def default(self, value):
+        """Set defaults of subfields based on dict. Existing defaults are overwritten,
+        new defaults are added, but defaults not in the dict are not removed, unless
+        explicitly set to None.
+        """
+        if self.fields is None or len(self.fields) == 0:
+            return
+        if value is None:
+            # remove all defaults
+            for subfield in self.fields.values():
+                subfield.default = None
+        elif isinstance(value, MutableMapping):
+            # (re)set defaults for subfields
+            for key, val in value.items():
+                if key in self.fields:
+                    self.fields[key].default = val
+                else:
+                    raise ValueError(f"Unknown field {key} in `{self.name}`")
+        else:
+            raise ValueError(f"Default value for `{self.name}` must be a dict")
 
     @property
     def description(self):

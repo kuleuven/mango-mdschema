@@ -160,6 +160,7 @@ class TestFields(unittest.TestCase):
             {"subfield1": "abc", "subfield2": 123},
         )
         field.namespace = "parent"
+        self.assertEqual(field.namespace, "parent")
         self.assertEqual(subfield1.namespace, "parent.composite1")
         self.assertEqual(subfield1.basename, "subfield1")
         self.assertEqual(subfield1.name, "parent.composite1.subfield1")
@@ -168,12 +169,19 @@ class TestFields(unittest.TestCase):
             {"subfield1": "abc", "subfield2": 123},
         )
 
+        now = datetime.now()
         subfield3 = TextField("subfield3")
-        subfield4 = DateTimeField("subfield4", default=datetime.now(), required=True)
+        subfield4 = DateTimeField("subfield4", default=now, required=True)
         fields = [subfield3, subfield4]
         field = CompositeField("composite2", fields=fields)
         self.assertTrue(field.required)
-        self.assertEqual(field.default, {"subfield4": subfield4.default})
+        self.assertEqual(field.default, {"subfield4": now})
+        field.default = None
+        self.assertIsNone(field.default)
+        self.assertIsNone(subfield4.default)
+        field.default = {"subfield3": "abc"}
+        self.assertEqual(field.default, {"subfield3": "abc"})
+        self.assertEqual(subfield3.default, "abc")
 
     def test_multiple_field(self):
         field = MultipleField(
