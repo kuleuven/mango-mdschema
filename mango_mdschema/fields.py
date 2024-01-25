@@ -658,7 +658,6 @@ class MultipleField(Field):
             )
         self.multiple = multiple
         self.choices = [str(v) for v in choices]
-        self.multiple = multiple
 
     @property
     def description(self):
@@ -729,6 +728,7 @@ class RepeatableField(Field):
             field (Field): The field to repeat.
             params (dict, optional): Additional parameters for the field.
         """
+        self.field = field
         super().__init__(
             field.name,
             type=field.type,
@@ -737,8 +737,40 @@ class RepeatableField(Field):
             repeatable=True,
             **params,
         )
-        self.field = field
-        self.field.repeatable = True
+
+    @property
+    def required(self):
+        """Override required property of super to get required from wrapped field"""
+        return self.field.required
+
+    @required.setter
+    def required(self, value):
+        """Set required property recursively on wrapped field."""
+        self.field.required = value
+
+    @property
+    def default(self):
+        """Override default property of super to get defaults from wrapped field"""
+        return self.field.default
+
+    @default.setter
+    def default(self, value):
+        """Set defaults of wrapped field based on dict. Existing defaults are overwritten,
+        new defaults are added, but defaults not in the dict are not removed, unless
+        explicitly set to None.
+        """
+        self.field.default = value
+
+    @property
+    def repeatable(self):
+        """Override repeatable property of super to get repeatable from wrapped field"""
+        return True
+
+    @repeatable.setter
+    def repeatable(self, value):
+        """Set repeatable property recursively on wrapped field."""
+        if not value:
+            raise ValueError("Repeatable field must be repeatable")
 
     @property
     def description(self):
@@ -759,12 +791,20 @@ class RepeatableField(Field):
             return [self.field.convert(val) for val in value]
         return [self.field.convert(value)] if value is not None else []
 
+    @Field.name.setter
+    def name(self, value):
+        """Update namespace of subfields when name of composite field is updated."""
+        Field.name.fset(self, value)
+        self.field.name = value
+
     @Field.namespace.setter
     def namespace(self, value):
-        """Update namespace of wrapped field when namespace of repeatable field is updated."""
+        """Update namespace of subfields when namespace of composite field is updated."""
+        Field.namespace.fset(self, value)
         self.field.namespace = value
 
     @Field.basename.setter
     def basename(self, value):
-        """Update namespace of wrapped field when basename of repeatable field is updated."""
+        """Update namespace of subfields when basename of composite field is updated."""
+        Field.basename.fset(self, value)
         self.field.basename = value

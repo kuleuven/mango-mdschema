@@ -227,11 +227,14 @@ class TestFields(unittest.TestCase):
             field.validate(["option2"])
 
     def test_repeatable_field(self):
-        subfield = TextField("subfield")
+        subfield = TextField("repeatable")
         field = RepeatableField(subfield)
+        self.assertEqual(field.name, "repeatable")
         self.assertEqual(field.type, subfield.type)
         self.assertEqual(field.required, subfield.required)
         self.assertEqual(field.default, subfield.default)
+        with self.assertRaises(ValueError):
+            field.repeatable = False
         self.assertTrue(field.repeatable)
         self.assertEqual(field.field, subfield)
         self.assertEqual(field.validate(["abc", "def"]), ["abc", "def"])
@@ -239,6 +242,14 @@ class TestFields(unittest.TestCase):
         self.assertEqual(field.validate(["abc"]), ["abc"])
         self.assertEqual(field.validate([]), [])
         self.assertEqual(field.validate(None), None)
+        field.namespace = "parent"
+        self.assertEqual(field.namespace, "parent")
+        self.assertEqual(subfield.namespace, "parent")
+        self.assertEqual(subfield.basename, "repeatable")
+        field.basename = "repeatable2"
+        self.assertEqual(field.basename, "repeatable2")
+        self.assertEqual(subfield.basename, "repeatable2")
+
 
 
 if __name__ == "__main__":
