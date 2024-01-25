@@ -476,6 +476,11 @@ class CompositeField(Field):
         # make sure all subfields have correct name prefix
         for subfield in self.fields.values():
             subfield.namespace = self.name
+
+        # override defaults of subfields if default parameter is provided
+        if "default" in params:
+            self.default = params.get("default", None)
+
         self.required_fields = {
             subfield_basename: subfield.default
             for subfield_basename, subfield in self.fields.items()
@@ -483,7 +488,6 @@ class CompositeField(Field):
         }
         if len(self.required_fields) > 0:
             self.required = True
-            self.default = self.required_fields
 
     @property
     def default(self):

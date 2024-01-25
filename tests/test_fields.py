@@ -170,16 +170,17 @@ class TestFields(unittest.TestCase):
         )
 
         now = datetime.now()
-        subfield3 = TextField("subfield3")
-        subfield4 = DateTimeField("subfield4", default=now, required=True)
+        subfield3 = TextField("subfield3", default="xyz")
+        subfield4 = DateTimeField("subfield4", required=True)
         fields = [subfield3, subfield4]
-        field = CompositeField("composite2", fields=fields)
+        field = CompositeField("composite2", fields=fields, default={"subfield4": now})
         self.assertTrue(field.required)
-        self.assertEqual(field.default, {"subfield4": now})
+        self.assertEqual(field.default, {"subfield3": "xyz", "subfield4": now})
+        self.assertEqual(subfield4.default, now)
         field.default = None
         self.assertIsNone(field.default)
         self.assertIsNone(subfield4.default)
-        field.default = {"subfield3": "abc"}
+        field.default = {"subfield3": "abc", "subfield4": None}
         self.assertEqual(field.default, {"subfield3": "abc"})
         self.assertEqual(subfield3.default, "abc")
 
