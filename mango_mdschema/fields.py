@@ -37,7 +37,7 @@ class Field:
         Raises:
             ValueError: When the field type is not provided.
         """
-        self.name = name
+        self._name = name
 
         if "type" not in params:
             raise ValueError(f"No type defined for field {name}.")
@@ -47,24 +47,34 @@ class Field:
         self.repeatable = params.get("repeatable", False)
 
     @property
+    def name(self):
+        """Get the name of the field."""
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        """Set the name of the field."""
+        self._name = value
+
+    @property
     def basename(self):
         """Get the basename of the field name."""
-        return self.name.split(NAME_DELIMITER)[-1]
+        return self._name.split(NAME_DELIMITER)[-1]
 
     @basename.setter
     def basename(self, value):
         """Set the basename of the field name."""
-        self.name = f"{self.namespace}{NAME_DELIMITER}{value}"
+        self._name = f"{self.namespace}{NAME_DELIMITER}{value}"
 
     @property
     def namespace(self):
         """Get the namespace (aka prefix) of the field name."""
-        return NAME_DELIMITER.join(self.name.split(NAME_DELIMITER)[:-1])
+        return NAME_DELIMITER.join(self._name.split(NAME_DELIMITER)[:-1])
 
     @namespace.setter
     def namespace(self, value):
         """Set the namespace (aka prefix) of the field name."""
-        self.name = f"{value}{NAME_DELIMITER}{self.basename}"
+        self._name = f"{value}{NAME_DELIMITER}{self.basename}"
 
     @property
     def description(self):
@@ -533,17 +543,24 @@ class CompositeField(Field):
             value,
         )
 
+    @Field.name.setter
+    def name(self, value):
+        """Update namespace of subfields when name of composite field is updated."""
+        Field.name.fset(self, value)
+        for subfield in self.fields.values():
+            subfield.namespace = value
+
     @Field.namespace.setter
     def namespace(self, value):
         """Update namespace of subfields when namespace of composite field is updated."""
-        self.name = f"{value}{NAME_DELIMITER}{self.basename}"
+        Field.namespace.fset(self, value)
         for subfield in self.fields.values():
             subfield.namespace = self.name
 
     @Field.basename.setter
     def basename(self, value):
         """Update namespace of subfields when basename of composite field is updated."""
-        self.name = f"{self.namespace}{NAME_DELIMITER}{value}"
+        Field.basename.fset(self, value)
         for subfield in self.fields.values():
             subfield.namespace = self.name
 
