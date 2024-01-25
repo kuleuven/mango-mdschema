@@ -2,6 +2,7 @@
 
 # pylint: disable=missing-docstring,too-many-public-methods
 
+import logging
 import unittest
 from datetime import datetime, date, time
 from mango_mdschema.exceptions import ConversionError, ValidationError
@@ -18,6 +19,10 @@ from mango_mdschema.fields import (
     MultipleField,
     RepeatableField,
 )
+
+# Set up logging
+logger = logging.getLogger("mango_mdschema")
+logger.setLevel(logging.DEBUG)
 
 
 class TestFields(unittest.TestCase):
@@ -225,6 +230,12 @@ class TestFields(unittest.TestCase):
             field.validate(["option1", "option4"])
         with self.assertRaises(ValidationError):
             field.validate(["option2"])
+        field.required = True
+        field.default = "option1"
+        field.multiple = True
+        self.assertEqual(field.validate(None), ["option1"], msg="default value with multiple=True")
+        field.multiple = False
+        self.assertEqual(field.validate(None), "option1", msg="default value with multiple=False")
 
     def test_repeatable_field(self):
         subfield = TextField("repeatable")
@@ -242,6 +253,10 @@ class TestFields(unittest.TestCase):
         self.assertEqual(field.validate(["abc"]), ["abc"])
         self.assertEqual(field.validate([]), [])
         self.assertEqual(field.validate(None), None)
+        field.required = True
+        field.default = "abc"
+        self.assertEqual(field.validate(None), ["abc"])
+        self.assertEqual(field.validate([]), ["abc"])
         field.namespace = "parent"
         self.assertEqual(field.namespace, "parent")
         self.assertEqual(subfield.namespace, "parent")
@@ -249,7 +264,6 @@ class TestFields(unittest.TestCase):
         field.basename = "repeatable2"
         self.assertEqual(field.basename, "repeatable2")
         self.assertEqual(subfield.basename, "repeatable2")
-
 
 
 if __name__ == "__main__":

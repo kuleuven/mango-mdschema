@@ -1,0 +1,85 @@
+{
+    "schema_name": "book",
+    "version": "2.0.0",
+    "status": "published",
+    "properties": {
+      "title": {
+        "title": "Book title",
+        "type": "text",
+        "required": true
+      },
+      "publishing_date": {
+        "title": "Publishing date",
+        "type": "date",
+        "required": true
+      },
+      "cover_colors": {
+        "title": "Colors in the cover",
+        "type": "select",
+        "values": [
+          "red",
+          "blue",
+          "green",
+          "yellow"
+        ],
+        "multiple": true,
+        "ui": "checkbox"
+      },
+      "publisher": {
+        "title": "Publishing house",
+        "type": "select",
+        "values": [
+          "Penguin House",
+          "Tor",
+          "Corgi",
+          "Nightshade books"
+        ],
+        "multiple": false,
+        "ui": "dropdown",
+        "required": true,
+        "default": "Tor"
+      },
+      "ebook": {
+        "title": "Is there an e-book",
+        "type": "select",
+        "values": [
+          "Available",
+          "Unavailable"
+        ],
+        "multiple": false,
+        "ui": "radio"
+      },
+      "author": {
+        "title": "Author",
+        "properties": {
+          "name": {
+            "title": "Name and surname",
+            "type": "text",
+            "required": true
+          },
+          "age": {
+            "title": "Age",
+            "type": "integer",
+            "minimum": "12",
+            "maximum": "99"
+          },
+          "email": {
+            "title": "Email address",
+            "type": "email",
+            "required": true,
+            "repeatable": true,
+            "pattern": "[^@]+@kuleuven.be"
+          }
+        },
+        "type": "object",
+        "repeatable": true
+      },
+      "market_price": {
+        "title": "Market price",
+        "type": "float"
+      }
+    },
+    "realm": "rdm_mango_tests",
+    "title": "Published Book",
+    "parent": ""
+  }

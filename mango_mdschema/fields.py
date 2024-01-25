@@ -3,7 +3,7 @@ from collections.abc import MutableMapping
 import logging
 import re
 from datetime import datetime, date, time
-from copy import deepcopy as copy
+from copy import copy
 
 import validators
 
@@ -107,7 +107,7 @@ class Field:
             ]
         )
 
-    def validate(self, value, convert: bool = True):
+    def validate(self, value, convert: bool = True, set_default: bool = True):
         """Validate the field value.
 
         Validation is a 2 step process: First the value is converted to it's
@@ -120,24 +120,19 @@ class Field:
             value: The field value to validate.
             convert (bool, optional): Whether to convert the value to it's Python
                 representation before validating it. Defaults to True.
+            set_default (bool, optional): Whether to set the default
+                value if the value is empty before validating it. Defaults to True.
 
         Returns:
-            Any: The cleaned value, if valid, or the default value, if required and empty.
+            Any: The cleaned value, if valid, or the default value, if empty.
 
         Raises:
             ValidationError: If the value is invalid.
             ConversionError: If the value cannot be converted.
         """
-        if self.is_empty(value):
-            if self.required and self.default is None:
-                raise ValidationError(
-                    f"Value is required for `{self.name}` and no default is provided",
-                    self.name,
-                )
-            if convert and self.default is not None:
-                logger.info("Using default value for `%s`", self.name)
-                value = self.convert(self.default)
-        elif convert:
+        if set_default:
+            value = self.apply_default(value)
+        if convert:
             value = self.convert(value)
         self.assert_valid(value)
         return value
@@ -153,6 +148,19 @@ class Field:
         if self.required and self.is_empty(value):
             raise ValidationError(f"Value required for `{self.name}`", self.name)
 
+    def apply_default(self, value):
+        """Apply the fields default if needed.
+
+        Args:
+            value: The value to check.
+
+        Returns:
+            Any: The value with the default applied as needed.
+        """
+        if self.is_empty(value) and self.default is not None:
+            return self.convert(self.default)
+        return copy(value)
+
     def convert(self, value):
         """Convert a value to it's Python representation.
 
@@ -164,7 +172,8 @@ class Field:
         the metadata from the iRODS AVU's.
 
         Raises:
-            ConversionError: If the value cannot be converted.
+            ConversionError: If the value cannot be converted, or if the value
+                is empty and no default is defined.
         """
         return copy(value)
 
@@ -391,7 +400,9 @@ class DateField(SimpleField):
 
     def assert_valid(self, value):
         super().assert_valid(value)
-        if value is not None and (not isinstance(value, date) or isinstance(value, datetime)):
+        if value is not None and (
+            not isinstance(value, date) or isinstance(value, datetime)
+        ):
             raise ValidationError(
                 f"Value `{self.name}` must be a date", self.name, value
             )
@@ -491,7 +502,9 @@ class CompositeField(Field):
         """Set required property recursively on all subfields."""
         if self.fields is None or len(self.fields) == 0:
             return
-        logger.warning("Setting required to %s for all subfields of %s!", value, self.name)
+        logger.warning(
+            "Setting required to %s for all subfields of %s!", value, self.name
+        )
         for subfield in self.fields.values():
             subfield.required = value
 
@@ -552,6 +565,31 @@ class CompositeField(Field):
             ]
         )
 
+    def apply_default(self, value):
+        """Apply default recursively to subfields if needed.
+
+        Args:
+            value: The value to check.
+
+        Returns:
+            Any: The value with the default applied as needed.
+        """
+        # if there are no subfields set, return the defaults for all subfields
+        if self.is_empty(value) and self.default is not None:
+            return self.convert(self.default)
+        if self.default is not None:
+            fields = copy(value) if value is not None else {}
+            # apply default to all known subfields set in the current value
+            for key, val in fields.items():
+                if key in self.fields:
+                    fields[key] = self.fields[key].apply_default(val)
+            # Set default on all subfields not set in the current value
+            for key, val in self.default.items():
+                if key not in fields:
+                    fields[key] = self.fields[key].convert(val)
+            return fields
+        return copy(value)
+
     def assert_valid(self, value):
         super().assert_valid(value)
         if not isinstance(value, MutableMapping):
@@ -565,11 +603,12 @@ class CompositeField(Field):
                 for key, subfield in self.fields.items()
                 if not subfield.required and key not in value.keys()
             ]
-            logger.info(
-                "Missing non-required fields in %s: %s.",
-                self.name,
-                ", ".join(missing_non_required),
-            )
+            if len(missing_non_required) > 0:
+                logger.info(
+                    "Missing non-required fields in %s: %s.",
+                    self.name,
+                    ", ".join(missing_non_required),
+                )
         for key, val in value.items():
             if key not in self.fields:
                 raise ValidationError(
@@ -585,14 +624,13 @@ class CompositeField(Field):
         if isinstance(value, MutableMapping):
             if logger.isEnabledFor(logging.INFO):
                 # check for unknown fields
-                unknown_fields = [
-                    key for key in value.keys() if key not in self.fields.keys()
-                ]
-                logger.info(
-                    "Following fields in %s do not belong to the schema and will be ignored: %s.",
-                    self.name,
-                    ", ".join(unknown_fields),
-                )
+                unknown_fields = [key for key in value.keys() if key not in self.fields]
+                if len(unknown_fields) > 0:
+                    logger.info(
+                        "Following fields in %s are undefined and will be ignored: %s.",
+                        self.name,
+                        ", ".join(unknown_fields),
+                    )
             return {
                 key: self.fields[key].convert(val)
                 for key, val in value.items()
@@ -658,6 +696,18 @@ class MultipleField(Field):
             )
         self.multiple = multiple
         self.choices = [str(v) for v in choices]
+
+    @property
+    def default(self):
+        """Override default property of super to convert default to list if multiple."""
+        if self._default is None:
+            return None
+        return [self._default] if self.multiple else self._default
+
+    @default.setter  # we need to redefine the setter because we have a custom getter
+    def default(self, value):
+        """Set default property."""
+        self._default = value
 
     @property
     def description(self):
@@ -746,7 +796,8 @@ class RepeatableField(Field):
     @required.setter
     def required(self, value):
         """Set required property recursively on wrapped field."""
-        self.field.required = value
+        if self.field.required != value:
+            self.field.required = value
 
     @property
     def default(self):
@@ -789,7 +840,7 @@ class RepeatableField(Field):
     def convert(self, value):
         if isinstance(value, list):
             return [self.field.convert(val) for val in value]
-        return [self.field.convert(value)] if value is not None else []
+        return [self.field.convert(value)] if value is not None else None
 
     @Field.name.setter
     def name(self, value):

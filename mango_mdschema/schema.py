@@ -156,7 +156,7 @@ class Schema:
             else RepeatableField(field=field)
         )
 
-    def validate(self, metadata: MutableMapping, convert: bool = True) -> bool:
+    def validate(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
         """Validate a dictionary of metadata against the schema.
 
         Validation is a 2 step process: First the values in the metadata dictionary
@@ -169,6 +169,8 @@ class Schema:
             metadata (dict): Dictionary of metadata to validate.
             convert (bool, optional): Whether to convert the values to their Python
                 representation before validation. Defaults to True.
+            set_defaults (bool, optional): Whether to set the default values for
+                missing fields. Defaults to True.
 
         Returns:
             dict: The clean and validated metadata
@@ -177,7 +179,7 @@ class Schema:
             ValidationError: If data is invalid.
             ConversionError: If data cannot be converted to the expected type.
         """
-        return self.root.validate(metadata, convert)
+        return self.root.validate(metadata, convert, set_default=set_defaults)
 
     def convert(self, metadata: MutableMapping) -> MutableMapping:
         """Convert metadata values to their Python representation after
@@ -289,9 +291,9 @@ class Schema:
             ValidationError: If data is invalid.
             ConversionError: If data cannot be converted to the expected type.
         """
-        metadata = self.validate(metadata, convert)
+        processed = self.validate(metadata, convert)
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
-        return list(map(lambda x: flattened_to_avu(x, prefix)), flatten(metadata))
+        return list(map(lambda x: flattened_to_avu(x, prefix), flatten(processed)))
 
     def from_avus(self, avus: list[iRODSMeta]) -> MutableMapping:
         """Generate a dictionary of metadata from a list of AVUs.
