@@ -26,7 +26,7 @@ def flatten(value, key=None, delim="."):
     key/value pairs, the following code can be used:
 
         ```
-        avus = list(map(flattened_to_avu, flatten(data)))
+        avus = list(map(flattened_to_mango_avu, flatten(data)))
         ```
 
     Args:
@@ -120,12 +120,15 @@ def unflatten(items, delim="."):
     return root
 
 
-def flattened_to_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
-    """ "Convert a flattened key/value pair yielded by the `flatten`
-    generator to a iRODSMeta object.
+def flattened_to_mango_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
+    """ "Convert a normalized flattened key/value pair yielded by the `flatten`
+    generator to a iRODSMeta object with name, value and units accoording to
+    the ManGO metadata specification.
 
     A datetime, date or time object is converted to an ISO 8601 string and
     a boolean is converted to a string 'true' or 'false'.
+
+    This function is the default converter used by the `Schema` class.
 
     Args:
         flattened (tuple): Tuple (key, value) with flattened key.
@@ -148,9 +151,14 @@ def flattened_to_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
             match = re.search(r"\[(\d+)\]", part)
             index = int(match.group(1)) + 1 if match else 0
             indices.append(str(index))
-        if indices[-1] != "0":
-            indices.pop()  # remove any index from the last part
-    name = re.sub(r"\[\d+\]", "", key)  # remove list indices
+        # Remove any index from the last part. Simple fields should not have
+        # have an index in the units string, also not if they are repeatable.
+        indices.pop()
+        # Change all 0 indices to 1, in the current implementation of the
+        # ManGO metadata specification, non-repeatable composite fields also
+        # need to have index 1 in the units string.
+        indices = ["1" if i == "0" else i for i in indices]
+    name = re.sub(r"\[\d+\]", "", key)  # remove list indices from the normalized key
     return iRODSMeta(
         name=f"{prefix}.{name}" if prefix else name,
         value=value,
@@ -158,10 +166,13 @@ def flattened_to_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
     )
 
 
-def flattend_from_avu(avu: iRODSMeta, prefix=None):
+def flattened_from_mango_avu(avu: iRODSMeta, prefix=None):
     """Convert an iRODSmeta object to a tuple of flattened key/value pairs
     that can be used as input to the `unflatten` function to create a
-    nested metadata dictionary
+    nested metadata dictionary from the AVUs based on the ManGO metadata
+    specification.
+
+    This function is the default converter used by the `Schema` class.
 
     Args:
       avu (iRODSMeta): iRODSMeta object.

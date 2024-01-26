@@ -13,17 +13,34 @@
         "type": "date",
         "required": true
       },
-      "cover_colors": {
-        "title": "Colors in the cover",
-        "type": "select",
-        "values": [
-          "red",
-          "blue",
-          "green",
-          "yellow"
-        ],
-        "multiple": true,
-        "ui": "checkbox"
+      "cover": {
+        "title": "Cover",
+        "properties": {
+          "colors": {
+            "title": "Colors in the cover",
+            "type": "select",
+            "values": [
+              "red",
+              "blue",
+              "green",
+              "yellow"
+            ],
+            "multiple": true,
+            "ui": "checkbox"
+          },
+          "type": {
+            "title": "Cover type",
+            "type": "select",
+            "values": [
+              "soft",
+              "hard"
+            ],
+            "multiple": false,
+            "ui": "radio"
+          }
+        },
+        "type": "object",
+        "repeatable": false
       },
       "publisher": {
         "title": "Publishing house",

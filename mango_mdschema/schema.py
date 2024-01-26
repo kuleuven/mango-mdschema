@@ -9,7 +9,13 @@ from irods.collection import iRODSCollection
 from irods.meta import AVUOperation, iRODSMeta
 
 from .constants import NAME_DELIMITER
-from .helpers import bold, flattend_from_avu, flattened_to_avu, flatten, unflatten
+from .helpers import (
+    bold,
+    flattened_from_mango_avu,
+    flattened_to_mango_avu,
+    flatten,
+    unflatten,
+)
 from .fields import (
     TextField,
     EmailField,
@@ -294,7 +300,9 @@ class Schema:
         """
         processed = self.validate(metadata, convert)
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
-        return list(map(lambda x: flattened_to_avu(x, prefix), flatten(processed)))
+        return list(
+            map(lambda x: flattened_to_mango_avu(x, prefix), flatten(processed))
+        )
 
     def from_avus(self, avus: list[iRODSMeta]) -> MutableMapping:
         """Generate a dictionary of metadata from a list of AVUs.
@@ -310,7 +318,9 @@ class Schema:
             ConversionError: If data cannot be converted to the expected type.
         """
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
-        unflattened = unflatten(list(map(lambda x: flattend_from_avu(x, prefix), avus)))
+        unflattened = unflatten(
+            list(map(lambda x: flattened_from_mango_avu(x, prefix), avus))
+        )
         return self.root.convert(unflattened)
 
     def print_requirements(self, field: str):

@@ -463,6 +463,18 @@ class CompositeField(Field):
     Attributes:
     fields (dict of Field): Collection of subfields. Keys are the (local) names
         of the subfields, values are the subfields themselves.
+
+    Caveats:
+    The current implementation of the ManGO metadata specification uses
+    indices for both repeatable and non-repeatable composite fields when
+    flattening to AVUs. This means that non-repeatable composite fields
+    will be unflattened to a list of length 1, with the dict of subfields
+    as its only element.
+
+    To resolve this, the CompositeField will convert the list to a dict
+    when the repeatable property is False.
+
+    See also: `helpers.unflattened_to_mango_avus`
     """
 
     def __init__(self, name: str, fields: list = None, **params):
@@ -619,6 +631,10 @@ class CompositeField(Field):
     def convert(self, value):
         if self.is_empty(value):
             return {}
+        if isinstance(value, list) and not self.repeatable:
+            # handle ambiguous unflattening of dicts in current ManGO schema specifiation.
+            # See above class docstring for more info.
+            return self.convert(value[0])
         if not isinstance(value, MutableMapping) and hasattr(value, "to_dict"):
             value = value.to_dict()
         if isinstance(value, MutableMapping):

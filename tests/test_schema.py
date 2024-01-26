@@ -64,10 +64,15 @@ class TestLoadSchema(unittest.TestCase):
         self.assertEqual(author_field.fields["age"].minimum, 12)
         self.assertEqual(author_field.fields["age"].maximum, 99)
         self.assertIsInstance(schema.fields["publishing_date"], DateField)
-        self.assertIsInstance(schema.fields["cover_colors"], MultipleField)
-        self.assertEqual(len(schema.fields["cover_colors"].choices), 4)
-        self.assertEqual(schema.fields["cover_colors"].choices[0], "red")
-        self.assertTrue(schema.fields["cover_colors"].multiple)
+        self.assertIsInstance(schema.fields["cover"], CompositeField)
+        cover_field = schema.fields["cover"]
+        self.assertEqual(cover_field.name, "book.cover")
+        self.assertIsInstance(cover_field.fields["colors"], MultipleField)
+        self.assertEqual(len(cover_field.fields["colors"].choices), 4)
+        self.assertEqual(cover_field.fields["colors"].choices[0], "red")
+        self.assertTrue(cover_field.fields["colors"].multiple)
+        self.assertIsInstance(cover_field.fields["type"], MultipleField)
+        self.assertEqual(len(cover_field.fields["type"].choices), 2)
         self.assertIsInstance(schema.fields["publisher"], MultipleField)
         self.assertIsInstance(schema.fields["market_price"], NumericField)
         self.assertEqual(schema.fields["market_price"].type, "float")
@@ -103,7 +108,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                     }
                 ],
                 "publishing_date": "2024-01-25",
-                "cover_colors": ["red", "blue"],
+                "cover": {"colors": ["red", "blue"], "type": "hard"},
                 "publisher": "Corgi",
             },
             {
@@ -121,6 +126,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                     },
                 ],
                 "publishing_date": "2024-01-01",
+                "cover": {"type": "soft"},
                 "ebook": "Available",
             },
         ]
@@ -152,14 +158,19 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                     units="",
                 ),
                 iRODSMeta(
-                    name="mgs.book.cover_colors",
-                    value=self.metadata[0]["cover_colors"][0],
-                    units="",
+                    name="mgs.book.cover.colors",
+                    value=self.metadata[0]["cover"]["colors"][0],
+                    units="1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.cover_colors",
-                    value=self.metadata[0]["cover_colors"][1],
-                    units="",
+                    name="mgs.book.cover.colors",
+                    value=self.metadata[0]["cover"]["colors"][1],
+                    units="1",
+                ),
+                iRODSMeta(
+                    name="mgs.book.cover.type",
+                    value=self.metadata[0]["cover"]["type"],
+                    units="1",
                 ),
                 iRODSMeta(
                     name="mgs.book.publisher",
@@ -205,6 +216,11 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                     name="mgs.book.publishing_date",
                     value=self.metadata[1]["publishing_date"],
                     units="",
+                ),
+                iRODSMeta(
+                    name="mgs.book.cover.type",
+                    value=self.metadata[1]["cover"]["type"],
+                    units="1",
                 ),
                 iRODSMeta(
                     name="mgs.book.ebook", value=self.metadata[1]["ebook"], units=""
