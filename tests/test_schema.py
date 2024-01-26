@@ -73,7 +73,7 @@ class TestLoadSchema(unittest.TestCase):
         self.assertEqual(schema.fields["market_price"].type, "float")
 
 
-class TestApplySchema(unittest.TestCase):
+class TestApplyAndExtractSchema(unittest.TestCase):
     """Unit tests for the Schema.apply() and Schema.to_avus() methods"""
 
     # pylint: disable=missing-docstring
@@ -278,9 +278,37 @@ class TestApplySchema(unittest.TestCase):
             )
         ]
         deleted = []
-        self.collection.metadata.apply_atomic_operations.assert_has_calls(
-            [call(*deleted), call(*added)]
-        )
+        assert self.collection.metadata.apply_atomic_operations.call_args_list == [
+            call(*deleted),
+            call(*added),
+        ], "Add metadata to collection with no previous metadata"
+
+        self.collection.reset_mock()
+
+        # Apply the sample metadata to the mock iRODSCollection object
+        # with already existing metadata (to test the update operation)
+        self.collection.metadata.items.return_value = self.avus[0] + [
+            iRODSMeta("mgs.book.__version__", "1.0.0")
+        ]
+        self.schema.apply(self.collection, self.metadata[1])
+
+        # Perform assertions on AVU operations
+        added = [AVUOperation(operation="add", avu=x) for x in self.avus[1]] + [
+            AVUOperation(
+                operation="add",
+                avu=iRODSMeta("mgs.book.__version__", self.schema.version),
+            )
+        ]
+        deleted = [AVUOperation(operation="remove", avu=x) for x in self.avus[0]] + [
+            AVUOperation(
+                operation="remove",
+                avu=iRODSMeta("mgs.book.__version__", "1.0.0"),
+            )
+        ]
+        assert self.collection.metadata.apply_atomic_operations.call_args_list == [
+            call(*deleted),
+            call(*added),
+        ], "Apply metadata with existing metadata of previous version"
 
     def test_extract_metadata_from_data_object(self):
         # Set up the mock iRODSDataObject to return the sample metadata
