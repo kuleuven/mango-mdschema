@@ -131,7 +131,7 @@ def flattened_to_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
         flattened (tuple): Tuple (key, value) with flattened key.
         prefix (str, optional): Prefix to add to the AVU name. Defaults to None.
     Returns:
-        dict: Dictionary with keys 'name', 'value', and 'units'.
+        iRODSMeta: the iRODS AVU object with mapt name, value and units.
     """
     key, value = flattened
     if isinstance(value, (datetime, date, time)):
