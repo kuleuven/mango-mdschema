@@ -2,7 +2,7 @@
 # included templates
 include:
   - project: "to-be-continuous/python"
-    ref: "6.6"
+    ref: "6.4"
     file: "templates/gitlab-ci-python.yml"
 
 # Secret variables
