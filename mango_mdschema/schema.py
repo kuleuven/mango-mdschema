@@ -124,7 +124,8 @@ class Schema:
 
         Args:
             name (str): Name of the field
-            parent (str): Name of the parent field (full hierarchical name, including the schema name)
+            parent (str): Name of the parent field (full hierarchical name,
+                including the schema name)
             params (dict): Parameters for the field.
 
         Raises:
