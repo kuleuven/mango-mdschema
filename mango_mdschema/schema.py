@@ -209,6 +209,8 @@ class Schema:
         self,
         item: iRODSCollection | iRODSDataObject,
         metadata: MutableMapping,
+        convert: bool = True,
+        set_defaults: bool = True
     ):
         """Apply metadata to an iRODS data object or collection.
 
@@ -216,6 +218,10 @@ class Schema:
             item (iRODSCollection | iRODSDataObject): iRODS data object or collection
                 to apply metadata to.
             metadata (dict): Dictionary of metadata to apply.
+            convert (bool, optional): Whether to convert the values to their Python
+                representation before validation. Defaults to True.
+            set_defaults (bool, optional): Whether to set the default values for
+                missing fields. Defaults to True.
 
         Raises:
             ValidationError: If data is invalid.
@@ -247,7 +253,7 @@ class Schema:
             self.name,
         )
 
-        avus = list(self.to_avus(metadata, convert=True))
+        avus = list(self.to_avus(metadata, convert=convert, set_defaults=set_defaults))
         avus.append(iRODSMeta(avu_version_name, self.version))
 
         # then apply atomic operations
@@ -280,7 +286,7 @@ class Schema:
         # convert metadata to their Python representation
         return self.convert(metadata)
 
-    def to_avus(self, metadata: MutableMapping, convert: bool = True):
+    def to_avus(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
         """Generate AVUs from a dictionary of metadata.
 
         Before flattening, the metadata is first converted to the expected Python
@@ -290,6 +296,8 @@ class Schema:
             metadata (dict): Dictionary of metadata to flatten to AVUs.
             convert (bool, optional): Whether to convert the values to their Python
                 representation before validation. Defaults to True.
+            set_defaults (bool, optional): Whether to set the default values for
+                missing fields. Defaults to True.
 
         Returns:
             list of iRODSMeta: List of AVUs.
@@ -298,7 +306,7 @@ class Schema:
             ValidationError: If data is invalid.
             ConversionError: If data cannot be converted to the expected type.
         """
-        processed = self.validate(metadata, convert)
+        processed = self.validate(metadata, convert=convert, set_defaults=set_defaults)
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
         return list(
             map(lambda x: flattened_to_mango_avu(x, prefix), flatten(processed))
