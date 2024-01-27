@@ -909,3 +909,8 @@ class RepeatableField(Field):
         """Update namespace of subfields when basename of composite field is updated."""
         Field.basename.fset(self, value)
         self.field.basename = value
+
+    @property
+    def required_fields(self):
+        """Get the required fields of the composite field."""
+        return self.field.required_fields
