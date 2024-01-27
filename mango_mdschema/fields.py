@@ -110,11 +110,12 @@ class Field:
     def validate(self, value, convert: bool = True, set_default: bool = True):
         """Validate the field value.
 
-        Validation is a 2 step process: First the value is converted to it's
-        Python representation (if needed) and then it is validated.
+        Validation is a 3 step process: First the default value is applied
+        if the value is empty, then the value is converted to it's
+        Python representation (if needed) and finally it is validated.
 
-        The default implementation calls the `convert` and `assert_valid` methods
-        to perform the conversion and validation steps.
+        The default implementation calls the `apply_default`, `convert` and
+        `assert_valid` methods to perform these 3 steps.
 
         Args:
             value: The field value to validate.
