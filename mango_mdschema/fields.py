@@ -40,7 +40,7 @@ class Field:
         self._name = name
 
         if "type" not in params:
-            raise ValueError(f"No type defined for field {name}.")
+            raise ValueError(f"No type defined for field '{name}'")
         self.type = params.get("type")
         self.required = params.get("required", False)
         self.default = params.get("default", None)
@@ -147,7 +147,7 @@ class Field:
             ValidationError: If the value is invalid.
         """
         if self.required and self.is_empty(value):
-            raise ValidationError(f"Value required for `{self.name}`", self.name)
+            raise ValidationError(f"Value required for '{self.name}'", self.name)
 
     def apply_default(self, value):
         """Apply the fields default if needed.
@@ -159,7 +159,12 @@ class Field:
             Any: The value with the default applied as needed.
         """
         if self.is_empty(value) and self.default is not None:
-            logger.info("Applying default to %s", self.name)
+            logger.info(
+                "Applying default value to %s field '%s': '%s'",
+                "required" if self.required else "non-required",
+                self.name,
+                self.default,
+            )
             return self.convert(self.default)
         return copy(value)
 
@@ -219,17 +224,17 @@ class TextField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, str) and value is not None:
             raise ValidationError(
-                f"Value `{self.name}` must be a string", self.name, value
+                f"'{self.name}' must be a string, got value: {value}", self.name, value
             )
         if self.max_length is not None and len(value) > int(self.max_length):
             raise ValidationError(
-                f"Length of `{self.name}` exceeds max length of {self.max_length}: {value}",
+                f"'{self.name}' exceeds max length {self.max_length}, got value: '{value}'",
                 self.name,
                 value,
             )
         if self.pattern is not None and not re.match(self.pattern, value):
             raise ValidationError(
-                f"Value of `{self.name}` does not match pattern {self.pattern}: {value}",
+                f"'{self.name}' does not match pattern '{self.pattern}', got value: '{value}'",
                 self.name,
                 value,
             )
@@ -259,7 +264,9 @@ class EmailField(TextField):
         super().assert_valid(value)
         if value is not None and validators.email(value) is not True:
             raise ValidationError(
-                f"Value `{self.name}` must be a valid email: {value}", self.name, value
+                f"'{self.name}' must be valid email, got value: '{value}'",
+                self.name,
+                value,
             )
 
 
@@ -274,7 +281,9 @@ class UrlField(TextField):
         super().assert_valid(value)
         if value is not None and validators.url(value) is not True:
             raise ValidationError(
-                f"Value `{self.name}` must be a valid URL", self.name, value
+                f"'{self.name}' must be a valid URL, got value: '{value}'",
+                self.name,
+                value,
             )
 
 
@@ -289,7 +298,9 @@ class BooleanField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, bool) and value is not None:
             raise ValidationError(
-                f"Value `{self.name}` must be a boolean", self.name, value
+                f"'{self.name}' must be a boolean, got value: '{value}'",
+                self.name,
+                value,
             )
 
     def convert(self, value):
@@ -302,7 +313,9 @@ class BooleanField(SimpleField):
             if value in ["false", "no", "n", "0"]:
                 return False
         raise ConversionError(
-            f"Cannot convert {value} to a bool for `{self.name}`", self.name, value
+            f"'{self.name}' cannot be converted to boolean, got value: '{value}'",
+            self.name,
+            value,
         )
 
 
@@ -323,17 +336,17 @@ class NumericField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, self.numeric_type):
             raise ValidationError(
-                f"Value `{self.name}` must be {self.type}", self.name, value
+                f"'{self.name}' must be of type '{self.type}'", self.name, value
             )
         if self.minimum is not None and value < self.minimum:
             raise ValidationError(
-                f"Value `{self.name}` must be greater than or equal to {self.minimum}",
+                f"'{self.name}' must be greater than or equal to {self.minimum}",
                 self.name,
                 value,
             )
         if self.maximum is not None and value > self.maximum:
             raise ValidationError(
-                f"Value `{self.name}` must be less than or equal to {self.maximum}",
+                f"'{self.name}' must be less than or equal to {self.maximum}",
                 self.name,
                 value,
             )
@@ -343,7 +356,7 @@ class NumericField(SimpleField):
             return self.numeric_type(value) if value is not None else value
         except (ValueError, TypeError) as err:
             raise ConversionError(
-                f"Cannot convert {value} to {self.type} for `{self.name}`",
+                f"'{self.name}' cannot be converted to type {self.type}, got value: '{value}'",
                 self.name,
                 value,
             ) from err
@@ -373,7 +386,9 @@ class DateTimeField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, datetime) and value is not None:
             raise ValidationError(
-                f"Value `{self.name}` must be a datetime", self.name, value
+                f"'{self.name}' must be a datetime, got value: '{value}'",
+                self.name,
+                value,
             )
 
     def convert(self, value):
@@ -387,7 +402,7 @@ class DateTimeField(SimpleField):
             return datetime.fromisoformat(str(value))
         except (ValueError, TypeError) as err:
             raise ConversionError(
-                f"Cannot convert {value} to a datetime for `{self.name}`",
+                f"'{self.name}' cannot be converted to datetime, got value: '{value}'",
                 self.name,
                 value,
             ) from err
@@ -406,7 +421,7 @@ class DateField(SimpleField):
             not isinstance(value, date) or isinstance(value, datetime)
         ):
             raise ValidationError(
-                f"Value `{self.name}` must be a date", self.name, value
+                f"'{self.name}' must be a date, got value: '{value}'", self.name, value
             )
 
     def convert(self, value):
@@ -420,7 +435,7 @@ class DateField(SimpleField):
             return date.fromisoformat(str(value))
         except (ValueError, TypeError) as err:
             raise ConversionError(
-                f"Cannot convert {value} to a date for `{self.name}`",
+                f"'{self.name}' cannot be converted to date, got value: '{value}'",
                 self.name,
                 value,
             ) from err
@@ -437,7 +452,7 @@ class TimeField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, time) and value is not None:
             raise ValidationError(
-                f"Value `{self.name}` must be a time", self.name, value
+                f"'{self.name}' must be a time, got value: '{value}'", self.name, value
             )
 
     def convert(self, value):
@@ -450,12 +465,14 @@ class TimeField(SimpleField):
                 return time.fromisoformat(value)
             except (ValueError, TypeError) as err:
                 raise ConversionError(
-                    f"Cannot convert {value} to a time for `{self.name}`",
+                    f"'{self.name}' cannot be converted to time, got value: '{value}'",
                     self.name,
                     value,
                 ) from err
         raise ConversionError(
-            f"Cannot convert {value} to a time for `{self.name}`", self.name, value
+            f"'{self.name}' cannot be converted to time, got value: '{value}'",
+            self.name,
+            value,
         )
 
 
@@ -494,10 +511,12 @@ class CompositeField(Field):
         super().__init__(name, **params)
 
         if self.type != "object":
-            raise ValueError("The type of the field must be 'object'.")
+            raise ValueError(f"Type of '{self.name}' must be 'object'")
         self.fields = {field.basename: field for field in fields} if fields else {}
         if self.fields is None or len(self.fields) == 0:
-            raise ValueError("A composite field must have at least one subfield.")
+            raise ValueError(
+                f"Composite field '{self.name}' must have at least one subfield"
+            )
         # make sure all subfields have correct name prefix
         for subfield in self.fields.values():
             subfield.namespace = self.name
@@ -517,7 +536,7 @@ class CompositeField(Field):
         if self.fields is None or len(self.fields) == 0:
             return
         logger.warning(
-            "Setting required to %s for all subfields of %s!", value, self.name
+            "Setting required to %s for all subfields of %s", value, self.name
         )
         for subfield in self.fields.values():
             subfield.required = value
@@ -561,9 +580,11 @@ class CompositeField(Field):
                 if key in self.fields:
                     self.fields[key].default = val
                 else:
-                    raise ValueError(f"Unknown field {key} in `{self.name}`")
+                    raise ValueError(
+                        f"Unknown field '{self.name}{NAME_DELIMITER}{key}'"
+                    )
         else:
-            raise ValueError(f"Default value for `{self.name}` must be a dict")
+            raise ValueError(f"Default value for '{self.name}' must be a dict")
 
     @property
     def description(self):
@@ -590,8 +611,10 @@ class CompositeField(Field):
         """
         # if there are no subfields set, return the defaults for all subfields
         if self.is_empty(value) and self.default is not None:
-            logger.info("Applying defaults to all subfields of %s", self.name)
-            return self.convert(self.default)
+            logger.info("Applying defaults to '%s'", self.name)
+            return {
+                key: self.fields[key].apply_default(None) for key in self.default.keys()
+            }
         if self.default is not None:
             fields = copy(value) if value is not None else {}
             # apply default to all known subfields set in the current value
@@ -599,19 +622,16 @@ class CompositeField(Field):
                 if key in self.fields:
                     fields[key] = self.fields[key].apply_default(val)
             # Set default on all subfields not set in the current value
-            for key, val in self.default.items():
+            for key in self.default.keys():
                 if key not in fields:
-                    logger.info("Applying default to %s", self.fields[key].name)
-                    fields[key] = self.fields[key].convert(val)
+                    fields[key] = self.fields[key].apply_default(None)
             return fields
         return copy(value)
 
     def assert_valid(self, value):
         super().assert_valid(value)
         if not isinstance(value, MutableMapping):
-            raise ValidationError(
-                f"Value `{self.name}` must be a dict", self.name, value
-            )
+            raise ValidationError(f"'{self.name}' must be a dict", self.name, value)
         if logger.isEnabledFor(logging.INFO):
             # check for missing non-required fields
             missing_non_required = [
@@ -621,14 +641,26 @@ class CompositeField(Field):
             ]
             if len(missing_non_required) > 0:
                 logger.info(
-                    "Missing non-required fields in %s: %s.",
+                    "Missing non-required fields in '%s': %s",
                     self.name,
-                    ", ".join(missing_non_required),
+                    missing_non_required,
                 )
+        missing_required = [
+            key for key in self.required_fields.keys() if key not in value.keys()
+        ]
+        if len(missing_required) > 0:
+            logger.info(
+                "Missing required fields in '%s': %s", self.name, missing_required
+            )
+            raise ValidationError(
+                f"Missing required fields in '{self.name}': {missing_required}",
+                self.name,
+                value,
+            )
         for key, val in value.items():
             if key not in self.fields:
                 raise ValidationError(
-                    f"Unknown field {key} in `{self.name}`", self.name
+                    f"Unknown field '{self.name}{NAME_DELIMITER}{key}'", self.name
                 )
             self.fields[key].assert_valid(val)
 
@@ -647,9 +679,9 @@ class CompositeField(Field):
                 unknown_fields = [key for key in value.keys() if key not in self.fields]
                 if len(unknown_fields) > 0:
                     logger.info(
-                        "Following fields in %s are undefined and will be ignored: %s.",
+                        "Following unknown fields in '%s' will be ignored: %s.",
                         self.name,
-                        ", ".join(unknown_fields),
+                        unknown_fields,
                     )
             return {
                 key: self.fields[key].convert(val)
@@ -658,7 +690,7 @@ class CompositeField(Field):
             }
         raise ConversionError(
             (
-                f"Can't convert composite field `{self.name}` to dict. "
+                f"Cannot convert composite field '{self.name}' to dict. "
                 "Value must be a dict or an object with a to_dict() method"
             ),
             self.name,
@@ -708,11 +740,11 @@ class MultipleField(Field):
             choices = params.get("values")
         elif choices is None:
             raise ValueError(
-                f"No 'values' or 'choices' provided for select field {name}."
+                f"No 'values' or 'choices' provided for select field '{name}'"
             )
         if not isinstance(choices, list) or len(choices) == 0:
             raise ValueError(
-                f"Invalid 'choices' for select field {name}, must be a non-empty list."
+                f"Invalid 'choices' for select field '{name}', must be a non-empty list"
             )
         self.multiple = multiple
         self.choices = [str(v) for v in choices]
@@ -746,19 +778,19 @@ class MultipleField(Field):
             return
         if self.multiple and not isinstance(value, list):
             raise ValidationError(
-                f"Value `{self.name}` must be a list", self.name, value
+                f"'{self.name}' must be a list, got value: '{value}'", self.name, value
             )
         if self.multiple:
             if not all(x in self.choices for x in value):
                 raise ValidationError(
-                    f"Value `{self.name}` must be a list of values in {self.choices}",
+                    f"'{self.name}' must be list with all values in {self.choices}, got: {value}",
                     self.name,
                     value,
                 )
         else:
             if value not in self.choices:
                 raise ValidationError(
-                    f"Value `{self.name}` must be one of {self.choices}",
+                    f"'{self.name}' must be one of {self.choices}, got: '{value}'",
                     self.name,
                     value,
                 )
@@ -767,7 +799,7 @@ class MultipleField(Field):
         if isinstance(value, list):  # if we have multiple values
             if not self.multiple:
                 raise ValidationError(
-                    f"Single value expected for `{self.name}` must be a single value, not a list",
+                    f"Single value expected for '{self.name}'",
                     self.name,
                     value,
                 )
@@ -777,7 +809,7 @@ class MultipleField(Field):
             if all(v not in self.choices for v in values):
                 if self.required:
                     raise ValidationError(
-                        f"No valid values in `{self.name}`. Allowed options are {self.choices}",
+                        f"No valid values in '{self.name}', allowed values: {self.choices}",
                         self.name,
                         value,
                     )
@@ -851,9 +883,7 @@ class RepeatableField(Field):
     def assert_valid(self, value):
         super().assert_valid(value)
         if not isinstance(value, list) and value is not None:
-            raise ValidationError(
-                f"Value `{self.name}` must be a list", self.name, value
-            )
+            raise ValidationError(f"'{self.name}' must be a list", self.name, value)
         for val in value if value is not None else []:
             self.field.assert_valid(val)
 
