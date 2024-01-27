@@ -159,6 +159,7 @@ class Field:
             Any: The value with the default applied as needed.
         """
         if self.is_empty(value) and self.default is not None:
+            logger.info("Applying default to %s", self.name)
             return self.convert(self.default)
         return copy(value)
 
@@ -589,6 +590,7 @@ class CompositeField(Field):
         """
         # if there are no subfields set, return the defaults for all subfields
         if self.is_empty(value) and self.default is not None:
+            logger.info("Applying defaults to all subfields of %s", self.name)
             return self.convert(self.default)
         if self.default is not None:
             fields = copy(value) if value is not None else {}
@@ -599,6 +601,7 @@ class CompositeField(Field):
             # Set default on all subfields not set in the current value
             for key, val in self.default.items():
                 if key not in fields:
+                    logger.info("Applying default to %s", self.fields[key].name)
                     fields[key] = self.fields[key].convert(val)
             return fields
         return copy(value)
