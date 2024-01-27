@@ -1,13 +1,36 @@
 """Module containing the Schema class."""
+from collections.abc import MutableMapping
 import json
 import logging
+import warnings
 
 from irods.data_object import iRODSDataObject
 from irods.collection import iRODSCollection
 from irods.meta import AVUOperation, iRODSMeta
 
-from mango_mdschema.fields import Field
-from mango_mdschema.helpers import check_metadata, bold
+from .constants import NAME_DELIMITER
+from .helpers import (
+    bold,
+    flattened_from_mango_avu,
+    flattened_to_mango_avu,
+    flatten,
+    unflatten,
+)
+from .fields import (
+    TextField,
+    EmailField,
+    UrlField,
+    NumericField,
+    DateField,
+    TimeField,
+    DateTimeField,
+    BooleanField,
+    MultipleField,
+    CompositeField,
+    RepeatableField,
+)
+
+logger = logging.getLogger("mango_mdschema")
 
 
 class Schema:
@@ -18,16 +41,34 @@ class Schema:
         version (str): Version of the schema.
         title (str): Title of the schema, for messages.
             The name if no such title is provided in the JSON (which should not happen).
-        fields (dict of Input): Fields of the schema.
+        root (CompositeField): Root field of the schema.
+        fields (dict): Dictionary of fields in the schema (alias for root.fields)
+        required_fields (dict): Dictionary of required fields and their default values.
+            If a field is required and has no default value, it is not present in the dictionary.
     """
+
+    # Mapping of supported field types to their class
+    field_types = {
+        "text": TextField,
+        "textarea": TextField,
+        "email": EmailField,
+        "url": UrlField,
+        "date": DateField,
+        "time": TimeField,
+        "datetime-local": DateTimeField,
+        "integer": NumericField,
+        "float": NumericField,
+        "checkbox": BooleanField,
+        "select": MultipleField,
+        "object": CompositeField,
+    }
 
     def __init__(self, path: str, prefix: str = "mgs"):
         """Init a Schema object from a JSON file.
 
         Args:
             path (str): Path to the metadata schema.
-            prefix (str): Prefix to add to the metadata names.
-                Default is 'mgs' (ManGO schema).
+            prefix (str): Prefix to add to the metadata names. Default is 'mgs' (ManGO schema).
 
         Raises:
             IOError: When the file cannot be opened.
@@ -63,61 +104,150 @@ class Schema:
 
         self.name = schema["schema_name"]
         self.version = schema["version"]
-        self.prefix = f"{prefix}.{self.name}"
+        self.prefix = prefix
         self.title = schema["title"] if schema["title"] else self.name
-        self.fields = {k: Field.create(k, v) for k, v in schema["properties"].items()}
-        for subfield in self.fields.values():
-            subfield.flatten_name(self.prefix)
-        self.required_fields = {
-            subfield.name: subfield.default
-            for subfield in self.fields.values()
-            if subfield.required
-        }
+        self.root = CompositeField(
+            self.name,
+            fields=[
+                self.create_field(name=name, parent=self.name, **params)
+                for name, params in schema["properties"].items()
+            ],
+        )
+
+    @property
+    def fields(self):
+        """Get the fields of the schema."""
+        return self.root.fields
+
+    @property
+    def required_fields(self):
+        """Get the required fields of the schema."""
+        return self.root.required_fields
+
+    @classmethod
+    def create_field(cls, name: str, parent: str, **params):
+        """Field factory method.
+
+        Args:
+            name (str): Name of the field
+            parent (str): Name of the parent field (full hierarchical name,
+                including the schema name)
+            params (dict): Parameters for the field.
+
+        Raises:
+            KeyError: When the field type is not supported.
+
+        Returns:
+            Field: The field.
+        """
+        name = NAME_DELIMITER.join([parent, name])
+        if "type" not in params:
+            raise KeyError(f"Field {name} should have a type.")
+        if params["type"] not in cls.field_types:
+            raise KeyError(f"Field type {params['type']} is not supported.")
+
+        field_class = cls.field_types[params["type"]]
+
+        if field_class == CompositeField:
+            # Create subfields for composite field
+            params["fields"] = [
+                cls.create_field(name=subfield_name, parent=name, **subfield_params)
+                for subfield_name, subfield_params in params["properties"].items()
+            ]
+
+        field = field_class(name, **params)
+        # Decorate with RepeatableField if necessary
+        return (
+            field
+            if not params.get("repeatable", False)
+            else RepeatableField(field=field)
+        )
+
+    def validate(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+        """Validate a dictionary of metadata against the schema.
+
+        Validation is a 2 step process: First the values in the metadata dictionary
+        are converted to it's Python representation (if needed) and then the values are
+        validated.
+
+        This method calles the validate method of the schema's root field.
+
+        Args:
+            metadata (dict): Dictionary of metadata to validate.
+            convert (bool, optional): Whether to convert the values to their Python
+                representation before validation. Defaults to True.
+            set_defaults (bool, optional): Whether to set the default values for
+                missing fields. Defaults to True.
+
+        Returns:
+            dict: The clean and validated metadata
+
+        Raises:
+            ValidationError: If data is invalid.
+            ConversionError: If data cannot be converted to the expected type.
+        """
+        return self.root.validate(metadata, convert, set_default=set_defaults)
+
+    def convert(self, metadata: MutableMapping) -> MutableMapping:
+        """Convert metadata values to their Python representation after
+        unflattenning from AVUs.
+
+        This method calles the convert method of the schema's root field.
+
+        Args:
+            metadata (dict): Dictionary of metadata to convert.
+
+        Returns:
+            dict: The converted metadata
+
+        Raises:
+            ConversionError: If data cannot be converted to the expected type.
+        """
+        return self.root.convert(metadata)
 
     def apply(
         self,
         item: iRODSCollection | iRODSDataObject,
-        metadata: dict,
-        verbose: bool = False,
+        metadata: MutableMapping,
     ):
-        """Apply a metadata schema to an iRODS data object or collection.
+        """Apply metadata to an iRODS data object or collection.
 
         Args:
             item (iRODSCollection | iRODSDataObject): iRODS data object or collection
                 to apply metadata to.
             metadata (dict): Dictionary of metadata to apply.
-            verbose (bool, optional): Whether warning should be printed when non-required
-                fields are missing,
-                when the default value of a required field is used
-                and when fields are provided that do not belong to the schema.
-                Defaults to False.
-                Warnings will be printed when non-required fields are present but not valid.
+
+        Raises:
+            ValidationError: If data is invalid.
+            ConversionError: If data cannot be converted to the expected type.
         """
-        avu_version_name = f"{self.prefix}.__version__"
+        avu_version_name = NAME_DELIMITER.join([self.prefix, self.name, "__version__"])
         # report if data is annotated with a previous version
         existing_mdschema = avu_version_name in item.metadata
-        if existing_mdschema and item.metadata[avu_version_name] != self.version:
-            logging.warning(
+        if existing_mdschema and item.metadata[avu_version_name].value != self.version:
+            logger.warning(
                 (
-                    "There is existing metadata linked to a previous version of this schema. "
-                    "It will be removed."
-                )
+                    "Existing metadata found of another version '%s' of the schema `%s` found"
+                    " and will be removed."
+                ),
+                self.version,
+                self.name,
             )
         # delete existing AVUs linked to this metadata and warn in that case
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
         existing_avus = [
-            x for x in item.metadata.items() if x.name.startswith(self.prefix)
+            avu for avu in item.metadata.items() if avu.name.startswith(prefix)
         ]
         item.metadata.apply_atomic_operations(
             *[AVUOperation(operation="remove", avu=x) for x in existing_avus]
         )
-        if verbose:
-            logging.warning(
-                "All of %s existing AVUs linked to the schema were removed.",
-                len(existing_avus),
-            )
+        logger.info(
+            "%s existing AVUs linked to the schema '%s' are removed.",
+            len(existing_avus),
+            self.name,
+        )
 
-        # create a list with the valid AVUs
-        avus = check_metadata(self, metadata, verbose)
+        avus = list(self.to_avus(metadata, convert=True))
         avus.append(iRODSMeta(avu_version_name, self.version))
 
         # then apply atomic operations
@@ -125,9 +255,85 @@ class Schema:
             *[AVUOperation(operation="add", avu=x) for x in avus]
         )
 
-    def check_requirements(self, field):
+    def extract(self, item: iRODSCollection | iRODSDataObject) -> MutableMapping:
+        """Extract metadata from an iRODS data object or collection.
+
+        Args:
+            item (iRODSCollection | iRODSDataObject): iRODS data object or collection
+                to extract metadata from.
+
+        Returns:
+            dict: Dictionary of metadata extracted from the item.
+
+        Raises:
+            ConversionError: If data cannot be converted to the expected type.
+        """
+        # get all AVUs linked to this metadata schema
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
+        avus = [
+            avu
+            for avu in item.metadata.items()
+            if avu.name.startswith(prefix)
+        ]
+        # convert AVUs to a dictionary
+        metadata = self.from_avus(avus)
+        # convert metadata to their Python representation
+        return self.convert(metadata)
+
+    def to_avus(self, metadata: MutableMapping, convert: bool = True):
+        """Generate AVUs from a dictionary of metadata.
+
+        Before flattening, the metadata is first converted to the expected Python
+        types (optional) and then validated.
+
+        Args:
+            metadata (dict): Dictionary of metadata to flatten to AVUs.
+            convert (bool, optional): Whether to convert the values to their Python
+                representation before validation. Defaults to True.
+
+        Returns:
+            list of iRODSMeta: List of AVUs.
+
+        Raises:
+            ValidationError: If data is invalid.
+            ConversionError: If data cannot be converted to the expected type.
+        """
+        processed = self.validate(metadata, convert)
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
+        return list(
+            map(lambda x: flattened_to_mango_avu(x, prefix), flatten(processed))
+        )
+
+    def from_avus(self, avus: list[iRODSMeta]) -> MutableMapping:
+        """Generate a dictionary of metadata from a list of AVUs.
+
+        Args:
+            avus (list of iRODSMeta): List of AVUs to unflatten.
+
+        Returns:
+            dict: Dictionary of metadata.
+
+        Raises:
+            ValidationError: If data is invalid.
+            ConversionError: If data cannot be converted to the expected type.
+        """
+        prefix = NAME_DELIMITER.join([self.prefix, self.name])
+        unflattened = unflatten(
+            list(map(lambda x: flattened_from_mango_avu(x, prefix), avus))
+        )
+        return self.root.convert(unflattened)
+
+    def print_requirements(self, field: str):
         """Print the requirements of a field."""
         print(self.fields[field])
+
+    def check_requirements(self, field):
+        """This method is deprecated, use print_requirements instead."""
+        warnings.warn(
+            "This method is deprecated, use print_requirements instead.",
+            DeprecationWarning,
+        )
+        self.print_requirements(field)
 
     def __str__(self):
         preamble = [

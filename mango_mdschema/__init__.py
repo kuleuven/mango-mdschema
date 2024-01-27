@@ -1,2 +1,5 @@
-from mango_mdschema.schema import Schema
-from mango_mdschema.helpers import check_metadata
+"""Main module for mango_mdschema package."""
+from .schema import Schema
+from .helpers import check_metadata
+
+__all__ = ["Schema", "check_metadata"]

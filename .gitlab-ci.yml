@@ -1,0 +1,24 @@
+# Ref: https://gitlab.kuleuven.be/to-be-continuous
+# included templates
+include:
+  - project: "to-be-continuous/python"
+    ref: "6.4"
+    file: "templates/gitlab-ci-python.yml"
+
+# Secret variables
+# (define the variables below in your GitLab group/project variables)
+# GIT_PRIVATE_KEY:
+#   SSH key for Git push operations (needed for automatic release)
+
+# variables
+variables:
+  PYTHON_IMAGE: "python:3.10"
+  PYTHON_BUILD_SYSTEM: "setuptools"
+  PYTHON_PACKAGE_ENABLED: "true"
+  PYLINT_ENABLED: "true"
+  UNITTEST_ENABLED: "true"
+  PYTHON_SBOM_DISABLED: "true"
+  PYTHON_RELEASE_ENABLED: "true"
+  PYTHON_RELEASE_COMMIT_MESSAGE: "chore(python-release): {current_version} → {new_version} [ci skip on prod]"
+  SEMREL_RELEASE_DISABLED: "true"
+  SEMREL_INFO_ON: "prod"
