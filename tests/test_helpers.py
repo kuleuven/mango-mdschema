@@ -30,7 +30,7 @@ class TestFlattening(unittest.TestCase):
         expected_output = {"a": {"b": {"c": 1, "d": 2}, "e": 3}, "f": 4}
         self.assertEqual(unflatten(input_dict), expected_output)
 
-    def test_idempotence(self):
+    def test_reversibility(self):
         """Test that flatten(unflatten(x)) == x for any dictionary x."""
 
         # Test case 1: Empty dictionary
@@ -183,16 +183,15 @@ class TestAVUFlattening(unittest.TestCase):
             expected_output,
         )
 
-    def test_idempotence(self):
+    def test_reversibility(self):
         """Test conversion of nested dictionaries to AVUs and back.
 
         Caveat:
         The current implementation of the ManGO metadata specification uses
         indices for both repeatable and non-repeatable composite fields. This means
         that the indices of non-repeatable composite fields are always 1. Because of
-        this, the conversion of nested dictionaries to AVUs and back is not
-        idempotent for non-repeatable composite fields. For example, the following
-        input dictionary:
+        this, the conversion of nested dictionaries to AVUs is not reversible for
+        non-repeatable composite fields. For example, the following input dictionary:
         {
             "a": 1,
             "b": {"c": 2, "d": {"e": 3, "f": 4}, "i": 7},
@@ -242,7 +241,7 @@ class TestAVUFlattening(unittest.TestCase):
 
         # The following function will convert non-repeatable composite fields to
         # repeatable composite fields with one element, so that the conversion to AVUs
-        # and back is idempotent. See the caveat above for more information.
+        # can be reversed. See the caveat above for more information.
         def handle_non_repeatable_composite_fields(d):
             if not isinstance(d, dict):
                 return d
