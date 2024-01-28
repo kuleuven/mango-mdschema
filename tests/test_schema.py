@@ -338,6 +338,18 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.assertEqual(extracted_metadata["title"], self.metadata[0]["title"])
         self.assertEqual(extracted_metadata, self.schema.validate(self.metadata[0]))
 
+    def test_reversibility(self):
+        for i, metadata in enumerate(self.metadata):
+            # Convert the sample metadata to the iRODS AVU format
+            avus = self.schema.to_avus(metadata)
+            validated = self.schema.validate(metadata)
+
+            # Convert the AVUs back to metadata
+            reconstructed = self.schema.from_avus(avus)
+
+            # Perform assertions on the converted metadata
+            self.assertEqual(validated, reconstructed, msg=f"Sample {i}")
+
 
 if __name__ == "__main__":
     unittest.main()
