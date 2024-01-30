@@ -338,6 +338,35 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.assertEqual(extracted_metadata["title"], self.metadata[0]["title"])
         self.assertEqual(extracted_metadata, self.schema.validate(self.metadata[0]))
 
+    def test_empty_metadata(self):
+        # Set up the mock iRODSDataObject to return empty metadata
+        self.data_object.reset_mock()
+        self.data_object.metadata.items.return_value = []
+
+        # Extract the metadata from the mock iRODSDataObject
+        extracted_metadata = self.schema.extract(self.data_object)
+
+        # Perform assertions on the extracted metadata
+        self.assertIsInstance(extracted_metadata, dict)
+        self.assertEqual(extracted_metadata, {})
+
+        # Set up the mock iRODSDataObject to return non-relevant metadata
+        self.data_object.reset_mock()
+        self.data_object.metadata.items.return_value = [
+            iRODSMeta(
+                name="mgs.other_schema.title", value="Title for other schema", units=""
+            ),
+            iRODSMeta(name="subject.length", value="11", units="cm",
+            )
+        ]
+
+        # Extract the metadata from the mock iRODSDataObject
+        extracted_metadata = self.schema.extract(self.data_object)
+
+        # Perform assertions on the extracted metadata
+        self.assertIsInstance(extracted_metadata, dict)
+        self.assertEqual(extracted_metadata, {})
+
     def test_reversibility(self):
         for i, metadata in enumerate(self.metadata):
             # Convert the sample metadata to the iRODS AVU format
