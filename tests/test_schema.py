@@ -135,7 +135,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.avus = [
             [
                 iRODSMeta(
-                    name="mgs.book.title", value=self.metadata[0]["title"], units=""
+                    name="mgs.book.title", value=self.metadata[0]["title"], units=None
                 ),
                 iRODSMeta(
                     name="mgs.book.author.name",
@@ -155,7 +155,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 iRODSMeta(
                     name="mgs.book.publishing_date",
                     value=self.metadata[0]["publishing_date"],
-                    units="",
+                    units=None,
                 ),
                 iRODSMeta(
                     name="mgs.book.cover.colors",
@@ -175,12 +175,12 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 iRODSMeta(
                     name="mgs.book.publisher",
                     value=self.metadata[0]["publisher"],
-                    units="",
+                    units=None,
                 ),
             ],
             [
                 iRODSMeta(
-                    name="mgs.book.title", value=self.metadata[1]["title"], units=""
+                    name="mgs.book.title", value=self.metadata[1]["title"], units=None
                 ),
                 iRODSMeta(
                     name="mgs.book.author.name",
@@ -215,7 +215,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 iRODSMeta(
                     name="mgs.book.publishing_date",
                     value=self.metadata[1]["publishing_date"],
-                    units="",
+                    units=None,
                 ),
                 iRODSMeta(
                     name="mgs.book.cover.type",
@@ -223,12 +223,12 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                     units="1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.ebook", value=self.metadata[1]["ebook"], units=""
+                    name="mgs.book.ebook", value=self.metadata[1]["ebook"], units=None
                 ),
                 iRODSMeta(
                     name="mgs.book.publisher",
                     value=self.schema.fields["publisher"].default,
-                    units="",
+                    units=None,
                 ),
             ],
         ]
@@ -354,7 +354,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.data_object.reset_mock()
         self.data_object.metadata.items.return_value = [
             iRODSMeta(
-                name="mgs.other_schema.title", value="Title for other schema", units=""
+                name="mgs.other_schema.title", value="Title for other schema", units=None
             ),
             iRODSMeta(name="subject.length", value="11", units="cm",
             )
