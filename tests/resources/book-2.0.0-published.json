@@ -94,6 +94,11 @@
       "market_price": {
         "title": "Market price",
         "type": "float"
+      },
+      "summary": {
+        "title": "Summary",
+        "type": "textarea",
+        "required": false
       }
     },
     "realm": "rdm_mango_tests",

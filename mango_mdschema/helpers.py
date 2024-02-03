@@ -42,7 +42,7 @@ def flatten(value, key=None, delim="."):
     elif isinstance(value, list):
         for i, item in enumerate(value):
             yield from flatten(item, f"{key}[{i}]", delim)
-    else:
+    elif value is not None:
         yield (key, value)
 
 

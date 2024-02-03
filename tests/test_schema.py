@@ -45,7 +45,7 @@ class TestLoadSchema(unittest.TestCase):
         self.assertEqual(schema.name, "book")
         self.assertEqual(schema.version, "2.0.0")
         self.assertEqual(schema.title, "Published Book")
-        self.assertEqual(len(schema.fields), 7)
+        self.assertEqual(len(schema.fields), 8)
         self.assertIsInstance(schema.fields["title"], TextField)
         self.assertEqual(schema.fields["title"].name, "book.title")
         self.assertIsInstance(schema.fields["author"], RepeatableField)
@@ -128,6 +128,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 "publishing_date": "2024-01-01",
                 "cover": {"type": "soft"},
                 "ebook": "Available",
+                "summary": None
             },
         ]
 
@@ -375,6 +376,13 @@ class TestApplyAndExtractSchema(unittest.TestCase):
 
             # Convert the AVUs back to metadata
             reconstructed = self.schema.from_avus(avus)
+
+            if "summary" in validated and validated["summary"] is None:
+                # If the summary field is present in the validated metadata but is None,
+                # it will not be present in the reconstructed metadata because
+                # the None values are not stored in the AVUs
+                self.assertNotIn("summary", reconstructed, msg=f"Sample {i}")
+                reconstructed["summary"] = None
 
             # Perform assertions on the converted metadata
             self.assertEqual(validated, reconstructed, msg=f"Sample {i}")

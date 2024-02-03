@@ -15,7 +15,7 @@ class TestFlattening(unittest.TestCase):
         self.assertEqual(list(flatten({})), [])
 
         # Test case 2: Nested dictionary
-        input_dict = {"a": {"b": {"c": 1, "d": 2}, "e": 3}, "f": 4}
+        input_dict = {"a": {"b": {"c": 1, "d": 2}, "e": 3}, "f": 4, "g": None}
         expected_output = [("a.b.c", 1), ("a.b.d", 2), ("a.e", 3), ("f", 4)]
         self.assertEqual(list(flatten(input_dict)), expected_output)
 
@@ -66,9 +66,10 @@ class TestFlattening(unittest.TestCase):
             "y": {"z": [{"aa": 22}, {"ab": 23}], "ac": 24},
             "ad": None,
         }
-        #output_dict = unflatten(flatten(input_dict))
-        #del input_dict["ad"]    # flatten() does not preserve None values
-        self.assertEqual(unflatten(flatten(input_dict)), input_dict)
+        output_dict = unflatten(flatten(input_dict))
+        self.assertNotIn("ad", output_dict)  # flatten() does not preserve None values
+        del input_dict["ad"]
+        self.assertEqual(output_dict, input_dict)
 
 
 class TestAVUFlattening(unittest.TestCase):
