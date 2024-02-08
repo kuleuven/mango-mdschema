@@ -1,4 +1,5 @@
 """"Classes representing the different types of fields in a metadata schema."""
+
 from collections.abc import MutableMapping
 import logging
 import re
@@ -111,7 +112,7 @@ class Field:
         """Validate the field value.
 
         Validation is a 3 step process: First the default value is applied
-        if the value is empty, then the value is converted to it's
+        if the value is empty, then the value is converted to its
         Python representation (if needed) and finally it is validated.
 
         The default implementation calls the `apply_default`, `convert` and
@@ -224,17 +225,19 @@ class TextField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, str) and value is not None:
             raise ValidationError(
-                f"'{self.name}' must be a string, got value: {value}", self.name, value
+                f"'{self.name}' must be a string, got value '{value}' instead",
+                self.name,
+                value,
             )
         if self.max_length is not None and len(value) > int(self.max_length):
             raise ValidationError(
-                f"'{self.name}' exceeds max length {self.max_length}, got value: '{value}'",
+                f"'{self.name}' exceeds max length {self.max_length}, got value '{value}'",
                 self.name,
                 value,
             )
         if self.pattern is not None and not re.match(self.pattern, value):
             raise ValidationError(
-                f"'{self.name}' does not match pattern '{self.pattern}', got value: '{value}'",
+                f"'{self.name}' does not match pattern '{self.pattern}', got value '{value}'",
                 self.name,
                 value,
             )
@@ -264,7 +267,7 @@ class EmailField(TextField):
         super().assert_valid(value)
         if value is not None and validators.email(value) is not True:
             raise ValidationError(
-                f"'{self.name}' must be valid email, got value: '{value}'",
+                f"'{self.name}' must be a valid email, got value '{value}' instead",
                 self.name,
                 value,
             )
@@ -281,7 +284,7 @@ class UrlField(TextField):
         super().assert_valid(value)
         if value is not None and validators.url(value) is not True:
             raise ValidationError(
-                f"'{self.name}' must be a valid URL, got value: '{value}'",
+                f"'{self.name}' must be a valid URL, got value '{value}' instead",
                 self.name,
                 value,
             )
@@ -298,7 +301,7 @@ class BooleanField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, bool) and value is not None:
             raise ValidationError(
-                f"'{self.name}' must be a boolean, got value: '{value}'",
+                f"'{self.name}' must be a boolean, got value '{value}' instead",
                 self.name,
                 value,
             )
@@ -313,7 +316,7 @@ class BooleanField(SimpleField):
             if value in ["false", "no", "n", "0"]:
                 return False
         raise ConversionError(
-            f"'{self.name}' cannot be converted to boolean, got value: '{value}'",
+            f"'{self.name}' cannot be converted to boolean, got value '{value}'",
             self.name,
             value,
         )
@@ -356,7 +359,7 @@ class NumericField(SimpleField):
             return self.numeric_type(value) if value is not None else value
         except (ValueError, TypeError) as err:
             raise ConversionError(
-                f"'{self.name}' cannot be converted to type {self.type}, got value: '{value}'",
+                f"'{self.name}' cannot be converted to type {self.type}, got value '{value}'",
                 self.name,
                 value,
             ) from err
@@ -386,7 +389,7 @@ class DateTimeField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, datetime) and value is not None:
             raise ValidationError(
-                f"'{self.name}' must be a datetime, got value: '{value}'",
+                f"'{self.name}' must be a datetime, got value '{value}' instead",
                 self.name,
                 value,
             )
@@ -402,7 +405,7 @@ class DateTimeField(SimpleField):
             return datetime.fromisoformat(str(value))
         except (ValueError, TypeError) as err:
             raise ConversionError(
-                f"'{self.name}' cannot be converted to datetime, got value: '{value}'",
+                f"'{self.name}' cannot be converted to a datetime, got value '{value}'",
                 self.name,
                 value,
             ) from err
@@ -421,7 +424,9 @@ class DateField(SimpleField):
             not isinstance(value, date) or isinstance(value, datetime)
         ):
             raise ValidationError(
-                f"'{self.name}' must be a date, got value: '{value}'", self.name, value
+                f"'{self.name}' must be a date, got value '{value}' instead",
+                self.name,
+                value,
             )
 
     def convert(self, value):
@@ -435,7 +440,7 @@ class DateField(SimpleField):
             return date.fromisoformat(str(value))
         except (ValueError, TypeError) as err:
             raise ConversionError(
-                f"'{self.name}' cannot be converted to date, got value: '{value}'",
+                f"'{self.name}' cannot be converted to a date, got value '{value}'",
                 self.name,
                 value,
             ) from err
@@ -452,7 +457,9 @@ class TimeField(SimpleField):
         super().assert_valid(value)
         if not isinstance(value, time) and value is not None:
             raise ValidationError(
-                f"'{self.name}' must be a time, got value: '{value}'", self.name, value
+                f"'{self.name}' must be a time, got value '{value}' instead",
+                self.name,
+                value,
             )
 
     def convert(self, value):
@@ -465,12 +472,12 @@ class TimeField(SimpleField):
                 return time.fromisoformat(value)
             except (ValueError, TypeError) as err:
                 raise ConversionError(
-                    f"'{self.name}' cannot be converted to time, got value: '{value}'",
+                    f"'{self.name}' cannot be converted to time, got value '{value}'",
                     self.name,
                     value,
                 ) from err
         raise ConversionError(
-            f"'{self.name}' cannot be converted to time, got value: '{value}'",
+            f"'{self.name}' cannot be converted to time, got value '{value}'",
             self.name,
             value,
         )
@@ -778,19 +785,21 @@ class MultipleField(Field):
             return
         if self.multiple and not isinstance(value, list):
             raise ValidationError(
-                f"'{self.name}' must be a list, got value: '{value}'", self.name, value
+                f"'{self.name}' must be a list, got value '{value}' instead",
+                self.name,
+                value,
             )
         if self.multiple:
             if not all(x in self.choices for x in value):
                 raise ValidationError(
-                    f"'{self.name}' must be list with all values in {self.choices}, got: {value}",
+                    f"'{self.name}' must be list with all values in {self.choices}, got {value}",
                     self.name,
                     value,
                 )
         else:
             if value not in self.choices:
                 raise ValidationError(
-                    f"'{self.name}' must be one of {self.choices}, got: '{value}'",
+                    f"'{self.name}' must be one of {self.choices}, got '{value}'",
                     self.name,
                     value,
                 )
