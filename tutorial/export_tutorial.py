@@ -16,6 +16,7 @@ body, resources = exporter.from_notebook_node(nb)
 output = strip_ansi(body)
 # strip the xmode statements from the markdown output
 output = output.replace("%xmode Minimal\n", '')
+output = re.sub(r' +Exception reporting mode: Minimal\n', '', output)
 # strip extranaeous newlines from the markdown output
 output = re.sub('\n{3,}', '\n\n', output)
 
