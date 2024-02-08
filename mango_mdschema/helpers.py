@@ -42,7 +42,7 @@ def flatten(value, key=None, delim="."):
     elif isinstance(value, list):
         for i, item in enumerate(value):
             yield from flatten(item, f"{key}[{i}]", delim)
-    else:
+    elif value is not None:
         yield (key, value)
 
 
@@ -159,10 +159,11 @@ def flattened_to_mango_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
         # need to have index 1 in the units string.
         indices = ["1" if i == "0" else i for i in indices]
     name = re.sub(r"\[\d+\]", "", key)  # remove list indices from the normalized key
+    units = ".".join(indices).rstrip(".0")  # remove trailing zero indices
     return iRODSMeta(
         name=f"{prefix}.{name}" if prefix else name,
         value=value,
-        units=".".join(indices).rstrip(".0"),  # remove trailing zero indices
+        units=units if units != "" else None,
     )
 
 

@@ -15,7 +15,7 @@ class TestFlattening(unittest.TestCase):
         self.assertEqual(list(flatten({})), [])
 
         # Test case 2: Nested dictionary
-        input_dict = {"a": {"b": {"c": 1, "d": 2}, "e": 3}, "f": 4}
+        input_dict = {"a": {"b": {"c": 1, "d": 2}, "e": 3}, "f": 4, "g": None}
         expected_output = [("a.b.c", 1), ("a.b.d", 2), ("a.e", 3), ("f", 4)]
         self.assertEqual(list(flatten(input_dict)), expected_output)
 
@@ -30,7 +30,7 @@ class TestFlattening(unittest.TestCase):
         expected_output = {"a": {"b": {"c": 1, "d": 2}, "e": 3}, "f": 4}
         self.assertEqual(unflatten(input_dict), expected_output)
 
-    def test_idempotence(self):
+    def test_reversibility(self):
         """Test that flatten(unflatten(x)) == x for any dictionary x."""
 
         # Test case 1: Empty dictionary
@@ -66,7 +66,10 @@ class TestFlattening(unittest.TestCase):
             "y": {"z": [{"aa": 22}, {"ab": 23}], "ac": 24},
             "ad": None,
         }
-        self.assertEqual(unflatten(flatten(input_dict)), input_dict)
+        output_dict = unflatten(flatten(input_dict))
+        self.assertNotIn("ad", output_dict)  # flatten() does not preserve None values
+        del input_dict["ad"]
+        self.assertEqual(output_dict, input_dict)
 
 
 class TestAVUFlattening(unittest.TestCase):
@@ -85,10 +88,10 @@ class TestAVUFlattening(unittest.TestCase):
         # Test case 2: List of tuples with simple fields
         input_list = [("a", 1), ("b", 2), ("c", 3), ("d", 4)]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a", value=1, units=""),
-            iRODSMeta(name=f"{prefix}.b", value=2, units=""),
-            iRODSMeta(name=f"{prefix}.c", value=3, units=""),
-            iRODSMeta(name=f"{prefix}.d", value=4, units=""),
+            iRODSMeta(name=f"{prefix}.a", value=1, units=None),
+            iRODSMeta(name=f"{prefix}.b", value=2, units=None),
+            iRODSMeta(name=f"{prefix}.c", value=3, units=None),
+            iRODSMeta(name=f"{prefix}.d", value=4, units=None),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -102,7 +105,7 @@ class TestAVUFlattening(unittest.TestCase):
             iRODSMeta(name=f"{prefix}.a.b.c", value=1, units="1.1"),
             iRODSMeta(name=f"{prefix}.a.b.d", value=2, units="1.1"),
             iRODSMeta(name=f"{prefix}.a.e", value=3, units="1"),
-            iRODSMeta(name=f"{prefix}.f", value=4, units=""),
+            iRODSMeta(name=f"{prefix}.f", value=4, units=None),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -157,7 +160,7 @@ class TestAVUFlattening(unittest.TestCase):
             "w": {"x": [{"y": 20}, {"y": 21}], "z": 22},
         }
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a", value=1, units=""),
+            iRODSMeta(name=f"{prefix}.a", value=1, units=None),
             iRODSMeta(name=f"{prefix}.b.c", value=2, units="1"),
             iRODSMeta(name=f"{prefix}.b.d.e", value=3, units="1.1"),
             iRODSMeta(name=f"{prefix}.b.d.f", value=4, units="1.1"),
@@ -166,8 +169,8 @@ class TestAVUFlattening(unittest.TestCase):
             iRODSMeta(name=f"{prefix}.j.l", value=9, units="1"),
             iRODSMeta(name=f"{prefix}.j.m", value=10, units="2"),
             iRODSMeta(name=f"{prefix}.j.n", value=11, units="2"),
-            iRODSMeta(name=f"{prefix}.o", value=12, units=""),
-            iRODSMeta(name=f"{prefix}.o", value=13, units=""),
+            iRODSMeta(name=f"{prefix}.o", value=12, units=None),
+            iRODSMeta(name=f"{prefix}.o", value=13, units=None),
             iRODSMeta(name=f"{prefix}.p.q.r", value=14, units="1.1"),
             iRODSMeta(name=f"{prefix}.p.q.r", value=15, units="1.2"),
             iRODSMeta(name=f"{prefix}.p.s", value=16, units="1"),
@@ -183,16 +186,15 @@ class TestAVUFlattening(unittest.TestCase):
             expected_output,
         )
 
-    def test_idempotence(self):
+    def test_reversibility(self):
         """Test conversion of nested dictionaries to AVUs and back.
 
         Caveat:
         The current implementation of the ManGO metadata specification uses
         indices for both repeatable and non-repeatable composite fields. This means
         that the indices of non-repeatable composite fields are always 1. Because of
-        this, the conversion of nested dictionaries to AVUs and back is not
-        idempotent for non-repeatable composite fields. For example, the following
-        input dictionary:
+        this, the conversion of nested dictionaries to AVUs is not reversible for
+        non-repeatable composite fields. For example, the following input dictionary:
         {
             "a": 1,
             "b": {"c": 2, "d": {"e": 3, "f": 4}, "i": 7},
@@ -201,7 +203,7 @@ class TestAVUFlattening(unittest.TestCase):
         is converted to the following list of AVUs:
 
         [
-            iRODSMeta(name="mgs.test.a", value=1, units=""),
+            iRODSMeta(name="mgs.test.a", value=1, units=None),
             iRODSMeta(name="mgs.test.b.c", value=2, units="1"),
             iRODSMeta(name="mgs.test.b.d.e", value=3, units="1.1"),
             iRODSMeta(name="mgs.test.b.d.f", value=4, units="1.1"),
@@ -242,7 +244,7 @@ class TestAVUFlattening(unittest.TestCase):
 
         # The following function will convert non-repeatable composite fields to
         # repeatable composite fields with one element, so that the conversion to AVUs
-        # and back is idempotent. See the caveat above for more information.
+        # can be reversed. See the caveat above for more information.
         def handle_non_repeatable_composite_fields(d):
             if not isinstance(d, dict):
                 return d

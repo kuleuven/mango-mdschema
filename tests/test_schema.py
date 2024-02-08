@@ -45,7 +45,7 @@ class TestLoadSchema(unittest.TestCase):
         self.assertEqual(schema.name, "book")
         self.assertEqual(schema.version, "2.0.0")
         self.assertEqual(schema.title, "Published Book")
-        self.assertEqual(len(schema.fields), 7)
+        self.assertEqual(len(schema.fields), 8)
         self.assertIsInstance(schema.fields["title"], TextField)
         self.assertEqual(schema.fields["title"].name, "book.title")
         self.assertIsInstance(schema.fields["author"], RepeatableField)
@@ -128,6 +128,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 "publishing_date": "2024-01-01",
                 "cover": {"type": "soft"},
                 "ebook": "Available",
+                "summary": None
             },
         ]
 
@@ -135,7 +136,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.avus = [
             [
                 iRODSMeta(
-                    name="mgs.book.title", value=self.metadata[0]["title"], units=""
+                    name="mgs.book.title", value=self.metadata[0]["title"], units=None
                 ),
                 iRODSMeta(
                     name="mgs.book.author.name",
@@ -155,7 +156,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 iRODSMeta(
                     name="mgs.book.publishing_date",
                     value=self.metadata[0]["publishing_date"],
-                    units="",
+                    units=None,
                 ),
                 iRODSMeta(
                     name="mgs.book.cover.colors",
@@ -175,12 +176,12 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 iRODSMeta(
                     name="mgs.book.publisher",
                     value=self.metadata[0]["publisher"],
-                    units="",
+                    units=None,
                 ),
             ],
             [
                 iRODSMeta(
-                    name="mgs.book.title", value=self.metadata[1]["title"], units=""
+                    name="mgs.book.title", value=self.metadata[1]["title"], units=None
                 ),
                 iRODSMeta(
                     name="mgs.book.author.name",
@@ -215,7 +216,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 iRODSMeta(
                     name="mgs.book.publishing_date",
                     value=self.metadata[1]["publishing_date"],
-                    units="",
+                    units=None,
                 ),
                 iRODSMeta(
                     name="mgs.book.cover.type",
@@ -223,12 +224,12 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                     units="1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.ebook", value=self.metadata[1]["ebook"], units=""
+                    name="mgs.book.ebook", value=self.metadata[1]["ebook"], units=None
                 ),
                 iRODSMeta(
                     name="mgs.book.publisher",
                     value=self.schema.fields["publisher"].default,
-                    units="",
+                    units=None,
                 ),
             ],
         ]
@@ -337,6 +338,54 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.assertIsInstance(extracted_metadata, dict)
         self.assertEqual(extracted_metadata["title"], self.metadata[0]["title"])
         self.assertEqual(extracted_metadata, self.schema.validate(self.metadata[0]))
+
+    def test_empty_metadata(self):
+        # Set up the mock iRODSDataObject to return empty metadata
+        self.data_object.reset_mock()
+        self.data_object.metadata.items.return_value = []
+
+        # Extract the metadata from the mock iRODSDataObject
+        extracted_metadata = self.schema.extract(self.data_object)
+
+        # Perform assertions on the extracted metadata
+        self.assertIsInstance(extracted_metadata, dict)
+        self.assertEqual(extracted_metadata, {})
+
+        # Set up the mock iRODSDataObject to return non-relevant metadata
+        self.data_object.reset_mock()
+        self.data_object.metadata.items.return_value = [
+            iRODSMeta(
+                name="mgs.other_schema.title", value="Title for other schema", units=None
+            ),
+            iRODSMeta(name="subject.length", value="11", units="cm",
+            )
+        ]
+
+        # Extract the metadata from the mock iRODSDataObject
+        extracted_metadata = self.schema.extract(self.data_object)
+
+        # Perform assertions on the extracted metadata
+        self.assertIsInstance(extracted_metadata, dict)
+        self.assertEqual(extracted_metadata, {})
+
+    def test_reversibility(self):
+        for i, metadata in enumerate(self.metadata):
+            # Convert the sample metadata to the iRODS AVU format
+            avus = self.schema.to_avus(metadata)
+            validated = self.schema.validate(metadata)
+
+            # Convert the AVUs back to metadata
+            reconstructed = self.schema.from_avus(avus)
+
+            if "summary" in validated and validated["summary"] is None:
+                # If the summary field is present in the validated metadata but is None,
+                # it will not be present in the reconstructed metadata because
+                # the None values are not stored in the AVUs
+                self.assertNotIn("summary", reconstructed, msg=f"Sample {i}")
+                reconstructed["summary"] = None
+
+            # Perform assertions on the converted metadata
+            self.assertEqual(validated, reconstructed, msg=f"Sample {i}")
 
 
 if __name__ == "__main__":
