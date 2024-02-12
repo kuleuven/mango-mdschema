@@ -3,6 +3,7 @@ from collections.abc import MutableMapping
 import json
 import logging
 import warnings
+from typing import Union, List
 
 from irods.data_object import iRODSDataObject
 from irods.collection import iRODSCollection
@@ -207,7 +208,7 @@ class Schema:
 
     def apply(
         self,
-        item: iRODSCollection | iRODSDataObject,
+        item: Union[iRODSCollection, iRODSDataObject],
         metadata: MutableMapping,
         convert: bool = True,
         set_defaults: bool = True
@@ -261,7 +262,7 @@ class Schema:
             *[AVUOperation(operation="add", avu=x) for x in avus]
         )
 
-    def extract(self, item: iRODSCollection | iRODSDataObject) -> MutableMapping:
+    def extract(self, item: Union[iRODSCollection, iRODSDataObject]) -> MutableMapping:
         """Extract metadata from an iRODS data object or collection.
 
         Args:
@@ -312,7 +313,7 @@ class Schema:
             map(lambda x: flattened_to_mango_avu(x, prefix), flatten(processed))
         )
 
-    def from_avus(self, avus: list[iRODSMeta]) -> MutableMapping:
+    def from_avus(self, avus: List[iRODSMeta]) -> MutableMapping:
         """Generate a dictionary of metadata from a list of AVUs.
 
         Args:
