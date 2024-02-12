@@ -1,86 +1,101 @@
 # Metadata schemas in Python
 
-This tutorial shows you - The basic workflow with this package - The
-contents and possibilities of the `Schema` class - What the dictionary
-with metadata should look like - What throws errors or warnings in
-validation
+This tutorial shows you
+- The basic workflow with this package
+- The contents and possibilities of the `Schema` class
+- What the dictionary with metadata should look like
+- What throws errors or warnings in validation
 
-# Basic workflow
+## Installation
 
-In the most basic use case of the package, you create a `Schema`
-instance with the path to your JSON schema (which should follow a
-specific format), you have a dictionary with name-value pairs for
-metadata, and you apply them to one or more iRODS objects (data objects
-or collections).
+You can install the package and it's dependencies with `pip`:
 
-In this tutorial we won’t show how to apply them (see the README at the
-top of the repository) but how to check that the metadata is compatible
-with the schema, what requirements are checked and what the consequences
-of mismatches are.
-
-``` python
-!pip install python-irodsclient
+```python
+pip install "git+https://github.com/kuleuven/mango-schema-validator@1.0.0"
 ```
 
-    Requirement already satisfied: python-irodsclient in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (1.1.9)
-    Requirement already satisfied: six>=1.10.0 in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from python-irodsclient) (1.16.0)
-    Requirement already satisfied: defusedxml in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from python-irodsclient) (0.7.1)
-    Requirement already satisfied: PrettyTable>=0.7.2 in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from python-irodsclient) (3.9.0)
-    Requirement already satisfied: wcwidth in /home/mariana/repos/gitea/u0118974/mango_mdschema_python/.venv/lib/python3.10/site-packages (from PrettyTable>=0.7.2->python-irodsclient) (0.2.12)
+> The package will be published to [Pypi](https://pypi.org/) in the future.
 
-First we import what we need. The `Schema` class is the most important
-tool in this package: it reads a schema from file, validates it and lets
-you validate and apply metadata. `check_metadata()` is a function called
-by the `apply()` method of a `Schema` but you can use it to validate a
-dictionary of metadata against a schema.
+## Basic workflow
 
-``` python
-from mango_mdschema import Schema, check_metadata
+In the most basic use case of the package:
+
+- You create a `Schema` instance with the path to your JSON schema (which should
+follow a specific format).
+- You have a dictionary with name-value pairs for metadata, and you apply them
+to one or more iRODS objects (data objects or collections).
+- You have an iRODS object (data object or collection) and you extract the metadata
+from it into a dictionary with all values converted into their Python representation.
+
+In this tutorial we won’t show how to apply or extract them (see the README at
+the top of the repository) but how to check that the metadata is compliant with
+the schema, what requirements are checked and what the consequences of mismatches
+are.
+
+First we import what we need. The `Schema` class is the most important tool in
+this package: it reads a schema from file, validates it and lets you validate,
+apply or read metadata.
+
+When calling the `apply()` method on the `Schema` object, it will call its
+`validate()` method to do validation. You can use this method also on its own
+to validate your dictionary of metadata against a schema.
+
+```python
+from pprint import pprint
+from mango_mdschema import Schema, ValidationError, ConversionError
 ```
 
-    ModuleNotFoundError: No module named 'irods'
+Create a schema by providing the path to the file. (In the future, `pathlib.Path`
+objects will also be accepted). See below for more information about this class.
 
-Create a schema by providing the path to the file. (In the future,
-`pathlib.Path` objects will also be accepted). See below for more
-information about this class.
-
-``` python
+```python
 my_schema = Schema('book-v2.0.0-published.json')
 ```
 
 Provide the metadata as a dictionary with not-namespaced attribute names
 and values (see below for specifications). If you have multiple values
 for the same attribute name (i.e. in a repeatable field or a
-multiple-value multiple-choice field), you should provide them as an
-array.
+multiple-value multiple-choice field), you should provide them as a list.
 
-``` python
+```python
 my_metadata = {
-    'title' : "A book not written yet",
-    'author' : {
-        'name' : "Fulano De Tal",
-        'email' : "fulano.detal@kuleuven.be"
+    'title': "A book not written yet",
+    'author': {
+        'name': "Fulano De Tal",
+        'email': "fulano.detal@kuleuven.be"
     },
-    'ebook' : 'Available',
-    'publishing_date' : '2015-02-01'
+    'ebook': 'Available',
+    'publishing_date': '2015-02-01'
 }
 ```
 
-Validate the metadata against the schema with `check_metadata()`. The
-`verbose` argument also prints warnings when non required fields or
-required fields with default values are not provided. The output of this
-function is a list of `irods.meta.iRODSMeta` objects with namespaced
-attribute names.
+Validate the metadata against the schema:
 
-You can now assign them to a data object or collection with atomic
-operations, or let this package do it by running
-`my_schema.apply(my_object, my_metadata)` instead. This also checks if
-there is already metadata linked to the schema and replaces it and
-updates the metadata related to the schema version, so it’s more in line
-with what the ManGO portal does.
+```python
+try:
+    validated = my_schema.validate(my_metadata)
+    print("My metadata is valid!")
+    pprint(validated)
+except (ConversionError, ValidationError) as err:
+    print(f"Oops my metadata was not valid: {err}")
+```
 
-``` python
-check_metadata(my_schema, my_metadata)
+    My metadata is valid!
+    {'author': [{'email': ['fulano.detal@kuleuven.be'], 'name': 'Fulano De Tal'}],
+     'ebook': 'Available',
+     'publisher': 'Tor',
+     'publishing_date': [datetime.date(2015, 2, 1)],
+     'title': 'A book not written yet'}
+
+On success, the converted metadata dictionary is returned. On failure, a
+`ConversionError` or `ValidationError` exception will be thrown.
+
+You can also call the `to_avus` method on `Schema`, which will first validate
+the provided metadata for you by calling `Schema.validate()`, and will then
+generate a list of `irods.meta.iRODSMeta` objects with namespaced attribute names.
+
+```python
+my_schema.to_avus(my_metadata)
 ```
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
@@ -90,27 +105,82 @@ check_metadata(my_schema, my_metadata)
      <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
-## The `Schema` class
+You can assign these avus to a data object or collection
+with atomic operations, but better is to use the `apply()` method
+of `Schema`.
 
-The `Schema` class represents a schema. As such, it has `name` and
-`version` attributes, as well as the `prefix` used for all AVU names.
-The prefix is the combination of a prefix given in the constructor (by
-default ‘mgs’) and the name of the schema. For example, initializing
-with `Schema('book-v2.0.0-published.json', 'irods')` would generate the
-prefix ‘irods.book’ for all the metadata related to this schema.
+The `apply()` method uses `to_avus()` (and `validate()`) under the hood
+to do validation and generation of AVUs, but before actually applying the
+metadata to the given iRODS collection of data object, it will
+check if there is already metadata linked to the schema, replace it and
+update the metadata related to the schema version. This way the behavior is
+consistent with that of the ManGO portal.
 
-``` python
-f"Metadata annotated with the schema '{my_schema.name}' (current version: {my_schema.version}) carry the prefix '{my_schema.prefix}'."
+```python
+my_schema.apply(my_object, my_metadata)
 ```
 
-    "Metadata annotated with the schema 'book' (current version: 2.0.0) carry the prefix 'mgs.book'."
+For all three methods (`apply()`, `to_avus()` and `validate()`) you can pass the
+parameters `set_defaults=False` and/or `convert=False` to disable the the
+first 2 steps of the validation: applying defaults and conversion.
 
-When instantiating a `Schema`, some basic validation is performed. For
-example, only ‘published’ schemas are accepted.
+With the method `extract()` you can do the reverse, i.e. read the iRODS AVUs
+from a collection or data object, and convert the metadata to a dictionary with
+all values converted to their type as defined by the schema fields.
 
-``` python
+```python
+my_metadata = my_schema.extract(my_object)
+```
+
+The `extract()` method calls `to_avus()` to unflatten the AVUs to a
+dictionary.
+
+As shown below, passing the AVUs generated by `to_avus()` back into
+`from_avus()`, will result in a dictionary identical to the one returned
+by the `validate()` method.
+
+```python
+avus = my_schema.to_avus(my_metadata)
+reconstructed = my_schema.from_avus(avus)
+print("Validated meta data converted to AVUs:")
+pprint(validated)
+print("Reconstructed metadata:")
+pprint(reconstructed)
+```
+
+    Validated meta data converted to AVUs:
+    {'author': [{'email': ['fulano.detal@kuleuven.be'], 'name': 'Fulano De Tal'}],
+     'ebook': 'Available',
+     'publisher': 'Tor',
+     'publishing_date': [datetime.date(2015, 2, 1)],
+     'title': 'A book not written yet'}
+    Reconstructed metadata:
+    {'author': [{'email': ['fulano.detal@kuleuven.be'], 'name': 'Fulano De Tal'}],
+     'ebook': 'Available',
+     'publisher': 'Tor',
+     'publishing_date': [datetime.date(2015, 2, 1)],
+     'title': 'A book not written yet'}
+
+## The `Schema` class
+
+The `Schema` class represents a schema. As such, it has `name` and `version`
+attributes, as well as the `prefix` used for all AVU names. The prefix is provided
+in the constructor (by default 'mgs') and is used in the namespacing of all
+metadata related to this schema. For example, initializing with
+`Schema('book-v2.0.0-published.json', 'irods')` would prefix all metadata
+names from this schema with 'irods.book'.
+
+```python
+print(f"Metadata annotated with the schema '{my_schema.name}' (current version: {my_schema.version}) carry the prefix '{my_schema.prefix}'.")
+```
+
+    Metadata annotated with the schema 'book' (current version: 2.0.0) carry the prefix 'mgs'.
+
+When instantiating a `Schema`, some basic validation is performed. For example, only ‘published’ schemas are accepted.
+
+```python
 import json
-with open('book-v3.0.0-draft.json', 'r') as f:
+with open('book-v3.0.0-draft.json', 'r', encoding="utf-8") as f:
     draft_schema = json.load(f)
     print(draft_schema['status'])
 Schema('book-v3.0.0-draft.json')
@@ -123,32 +193,40 @@ Schema('book-v3.0.0-draft.json')
 The code also checks that the fields make sense and have the necessary
 fields in the right format.
 
-``` python
-with open('bad-schema.json', 'r') as f:
+```python
+with open('bad-schema.json', 'r', encoding="utf-8") as f:
     bad_schema = json.load(f)
-    print(bad_schema['properties'])
+    pprint(bad_schema['properties'])
 Schema('bad-schema.json')
 ```
 
-    {'title': {'title': 'Book title', 'type': 'title', 'required': True}}
+    {'title': {'required': True, 'title': 'Book title', 'type': 'title'}}
 
-    ValueError: The type of the 'title' field is not valid.
+    KeyError: 'Field type title is not supported.'
 
 If you are not entirely familiar with your schema, you can check its
 contents by printing it or listing its `required_fields` attribute. This
-attribute is a dictionary of with the names required fields as keys and
+attribute is a dictionary with the names of the required fields as keys and
 their default value, if available, as value. This is particularly
 important because you will only get errors if a required field *without
-default* is not provided or the value provided for it is wrong. For
-required fields with defaults and non-required fields, wrong or missing
-values will simply be ignored. You will get warnings if you set
-`verbose` to `True`, though.
+default* is not provided or the value provided for it is wrong.
 
-``` python
+```python
 print(my_schema)
 ```
 
-``` python
+    Book schema as an example
+    Metadata annotated with the schema 'book' (2.0.0) carry the prefix 'mgs'.
+    This schema contains the following 7 fields:
+    - title, of type 'text' (required).
+    - publishing_date, of type 'date' (required).
+    - cover_colors, of type 'select'.
+    - publisher, of type 'select' (required).
+    - ebook, of type 'select'.
+    - author, of type 'object' (required).
+    - market_price, of type 'float'.
+
+```python
 my_schema.required_fields # note: 'author' is required because it contains required fields
 ```
 
@@ -158,16 +236,16 @@ A schema also has a method to check the requirements of a specific
 field, namely whether they are required and have a default, whether they
 are repeatable, and any other characteristic used in validation.
 
-``` python
-my_schema.check_requirements('title')
+```python
+my_schema.print_requirements('title')
 ```
 
     Type: text.
     Required: True. Default: None.
     Repeatable: False.
 
-``` python
-my_schema.check_requirements('cover_colors')
+```python
+my_schema.print_requirements('cover_colors')
 ```
 
     Type: select.
@@ -179,39 +257,37 @@ my_schema.check_requirements('cover_colors')
     - green
     - yellow
 
-When checking the requirements of a composite field, it also lists the
-requirements of its subfields.
+When checking the requirements of a composite field, it also lists the requirements of its subfields.
 
-``` python
-my_schema.check_requirements('author')
+```python
+my_schema.print_requirements('author')
 ```
 
     Type: object.
     Required: True. (2 of its 3 fields are required.)
     Repeatable: True.
-
+    
     Composed of the following fields:
-    name
+    book.author.name
     Type: text.
     Required: True. Default: None.
     Repeatable: False.
-
-    age
+    
+    book.author.age
     Type: integer.
     Required: False.
     Repeatable: False.
     integer between 12 and 99.
-
-    email
+    
+    book.author.email
     Type: email.
     Required: True. Default: None.
     Repeatable: True.
-    matching the following regex: @kuleuven.be$.
+    fully matching the following regex: ^[^@]+@kuleuven.be$.
 
-Composite fields also have `required_fields` attributes and, like
-schemas, a `fields` attribute listing all the fields.
+Composite fields also have `required_fields` attributes and, like schemas, a `fields` attribute listing all the fields.
 
-``` python
+```python
 my_schema.fields['author'].required_fields
 ```
 
@@ -219,20 +295,19 @@ my_schema.fields['author'].required_fields
 
 ## Metadata format
 
-The `metadata` argument of `check_metadata()` and `Schema.apply()`
-(which calls `check_metadata()`) must be a dictionary in which the keys
-represent the names/IDs of the fields *without namespacing* and the
-values, the value of the AVU to add.
+The `metadata` argument of `Schema.validate()`, `Schema.to_avus()` and `Schema.apply()`
+(which calls `Schema.validate()` and `Schema.to_avus()` for you) must be a dictionary
+in which the keys represent the names/IDs of the fields *without namespacing* and
+the values, the value of the AVU to add.
 
-If the field is a checkbox for which multiple values have been selected
-*or* a repeatable field with multiple values, then the value in the
-dictionary should be a list of such values. For example, the code below
-includes metadata for a checkbox. As you can see, this generates
-multiple AVUs with the same name and different values.
+If the field is a checkbox for which multiple values have been selected _or_ a
+repeatable field with multiple values, then the value in the dictionary should be a
+list of such values. For example, the code below includes metadata for a checkbox.
+As you can see, this generates multiple AVUs with the same name and different values.
 
-``` python
+```python
 my_metadata.update({'cover_colors' : ['red', 'blue']})
-check_metadata(my_schema, my_metadata)
+my_schema.to_avus(my_metadata)
 ```
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
@@ -244,37 +319,29 @@ check_metadata(my_schema, my_metadata)
      <iRODSMeta None mgs.book.cover_colors blue None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
-For composite fields, the value should be a dictionary with the same
-format: keys are field names without namespacing and values, the right
-value. In this case, we are providing the following values for ‘author’,
-which is a composite field:
+For composite fields, the value should be a dictionary with the same format: keys are field names without namespacing and values, the right value. In this case, we are providing the following values for 'author', which is a composite field:
 
-``` python
-{ 'name' : 'Fulano De Tal', 'email' : 'fulano.detal@kuleuven.be' }
+```python
+{ 'name': 'Fulano De Tal', 'email': 'fulano.detal@kuleuven.be' }
 ```
 
-This results in two AVUs with `mgs.book.author.name` and
-`mgs.book.author.email` as name, respectively, the corresponding values,
-and `0` as unit. The goal of the unit is to keep AVUs within the same
-composite field together, particularly when the composite field is
-repeatable. For example, we could submit two authors by providing a list
-with two dictionaries. As a result, we get two AVUs with
-`mgs.book.author.name` and two with `mgs.book.author.email`, and the
-unit indicates which email goes with each name.
+This results in two AVUs with `mgs.book.author.name` and `mgs.book.author.email` as name, respectively, the corresponding values, and `1` as unit.
+The goal of the unit is to keep AVUs within the same composite field together, particularly when the composite field is repeatable. For example, we could submit two authors by providing a list with two dictionaries.
+As a result, we get two AVUs with `mgs.book.author.name` and two with `mgs.book.author.email`, and the unit indicates which email goes with each name.
 
-``` python
+```python
 my_metadata['author']
 ```
 
     {'name': 'Fulano De Tal', 'email': 'fulano.detal@kuleuven.be'}
 
-``` python
+```python
 my_metadata['author'] = [
     {'name': 'Fulano De Tal', 'email': 'fulano.detal@kuleuven.be'},
     {'name': 'Jane Doe', 'email': 'jane_doe@kuleuven.be'}
 ]
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author')]
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author')]
 ```
 
     [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
@@ -282,14 +349,12 @@ checked_metadata = check_metadata(my_schema, my_metadata)
      <iRODSMeta None mgs.book.author.name Jane Doe 2>,
      <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>]
 
-Actually, the email of the author is also a repeatable field, so we
-could get more instances of `mgs.book.author.email`, always with the
-unit indicating who it belongs to.
+Actually, the email of the author is also a repeatable field, so we could get more instances of `mgs.book.author.email`, always with the unit indicating who it belongs to.
 
-``` python
+```python
 my_metadata['author'][1]['email'] = ['jane_doe@kuleuven.be', 'sweetdoe@kuleuven.be']
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author')]
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author')]
 ```
 
     [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
@@ -298,34 +363,57 @@ checked_metadata = check_metadata(my_schema, my_metadata)
      <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
      <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>]
 
+## Verbose logging
+
+To enable verbose logging for the `mango_mdschema` package, you can use the
+[`logging`](https://docs.python.org/3/library/logging.html) module to increase
+the logging level for the package:
+
+```python
+import logging
+logger = logging.getLogger("mango_mdschema")
+# logger.setLevel(logging.INFO)
+```
+
 ## Metadata validation
 
-There are two levels of validation for metadata: presence and
-appropriateness. They are applied both at the level of the schema and on
-each composite field.
+The validation works in 3 steps:
 
-- If a required field is missing, and there is no default value, it will
-  throw an error.
+1. Any missing or empty values will be set to their default value if defined
+in the schema, for both required and non-required fields.
 
-``` python
-check_metadata(my_schema, {'title' : 'I only have a title'})
+2. All values in the metadata dictionary (with added defaults) are converted
+to their Python representation for validation (e.g. dates in string format are
+converted to `datetime.date` objects).
+
+3. The converted metadata (loaded withe defaults) is validated.
+
+> **Warning**: Setting defaults in the ManGO portal works different than this
+package. On the portal, a default value is only applied when a field is required.
+
+If a required field is missing, and there is no default value, it will throw an error.
+
+```python
+my_schema.validate({'title': 'I only have a title'})
 ```
 
-    KeyError: 'The following required fields are missing and there is no default: mgs.book.publishing_date, mgs.book.author.'
+    ValidationError: Missing required fields in 'book': ['publishing_date', 'author']
 
-- If a required field is missing and there is a default value, you will
-  only get a warning if `verbose` is `True`; the default value is then
-  used.
-- If a non-required field is missing, you will only get a warning if
-  `verbose` is `True`.
+If a required field is missing and there is a default value, you will only get
+a warning if the log level is set to `INFO`; the default value is then used.
 
-``` python
-check_metadata(my_schema, my_metadata, verbose = True)
+If a non-required field is missing, you will only get a warning if the log level
+is set to `INFO`.
+
+```python
+logger.setLevel(logging.INFO)
+my_schema.to_avus(my_metadata)
 ```
 
-    WARNING:root:The following required fields are missing and the default value will be used: mgs.book.publisher (Tor)
-    WARNING:root:The following non required fields are missing: mgs.book.author.age.
-    WARNING:root:The following non required fields are missing: mgs.book.author.age.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.title A book not written yet None>,
      <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
@@ -339,20 +427,21 @@ check_metadata(my_schema, my_metadata, verbose = True)
      <iRODSMeta None mgs.book.cover_colors blue None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
-- If a field is provided that is not included in a schema, it will be
-  ignored, and you will only get a warning if `verbose` is `True`.
+If a field is provided that is not included in a schema, it will be ignored,
+and you will only get warning if the log level is set to `INFO`.
 
-``` python
+```python
+logger.setLevel(logging.INFO)
 mini_md = {'title' : 'I only have a title', 'publishing_date' : '2023-04-28',
            'author' : {'name' : 'Name Surname', 'email' : 'rightemail@kuleuven.be'},
            'publishing_house' : 'Oxford'}
-check_metadata(my_schema, mini_md, verbose = True)
+my_schema.to_avus(mini_md)
 ```
 
-    WARNING:root:The following required fields are missing and the default value will be used: mgs.book.publisher (Tor)
-    WARNING:root:The following non required fields are missing: mgs.book.cover_colors, mgs.book.ebook, mgs.book.market_price.
-    WARNING:root:The following fields do not belong to the schema and will be ignored: publishing_house.
-    WARNING:root:The following non required fields are missing: mgs.book.author.age.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Following unknown fields in 'book' will be ignored: ['publishing_house'].
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['cover_colors', 'ebook', 'market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.title I only have a title None>,
      <iRODSMeta None mgs.book.publishing_date 2023-04-28 None>,
@@ -360,229 +449,239 @@ check_metadata(my_schema, mini_md, verbose = True)
      <iRODSMeta None mgs.book.author.email rightemail@kuleuven.be 1>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
-``` python
+```python
 del mini_md['publishing_house']
 ```
 
-Once the presence of fields has been checked, we move on to
-appropriateness: are the values ok based on the requirements of the
-different fields? The `validators` package is used to validate the range
-of numbers as well as email and urls.
+Once the defaults has been set for fields with empty or missing value, and
+the values have been converted to their proper Python representation,
+the values are actually validated against the requirements of the fields.
 
-On this level, there is no effect of `verbose`, because if you are
-providing a value you will most certainly want to know that it has
-failed:
+The `validators` package is used to validate the range of numbers as well
+as email and urls.
 
-- when required fields *with no default value* are wrong an error is
-  thrown.
-- when required fields with default values are wrong, the default is
-  used and a warning is printed.
-- when non required fields are wrong, they are ignored and a warning is
-  printed.
+Any invalid data will always result in a `ValidationError` exception
+during this validation step.
+
+As mentioned above in section "Basic Workflow", for all three Schema
+methods (`apply()`, `to_avus()` and `validate()`) you can use
+`set_defaults=False` and/or `convert=False` to disable application of
+defaults and/or conversion.
 
 ### Numbers
 
-Integer and float simple fields must be of type `int` or `float`
-respectively or something that can be converted to such format.
-`validators.between()` is used to make sure that the number is within
-the provided range.
+Integer and float simple fields must be of type `int` or `float` respectively, or
+something that can be converted to such format.
 
-``` python
+Numeric fields can have a _minimum_ and _maximum_ property and during validation
+it's checked that the number is within the provided range.
+
+```python
 my_metadata['author'][0]['age'] = 30
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
+
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
      <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
      <iRODSMeta None mgs.book.author.age 30 1>]
 
-``` python
+```python
 # provided as a string that can be converted with `int()`
 my_metadata['author'][0]['age'] = '30'
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
+
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
      <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
      <iRODSMeta None mgs.book.author.age 30 1>]
 
-``` python
+```python
 # provided as a float that can be converted with `int()`
 my_metadata['author'][0]['age'] = 30.5
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
+
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
      <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
      <iRODSMeta None mgs.book.author.age 30 1>]
 
-``` python
+```python
 # wrong range: it should be between 12 and 99
 my_metadata['author'][0]['age'] = 103
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
 
-    WARNING:root:The values provided for `mgs.book.author.age` are not valid and will be ignored.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>]
+    ValidationError: 'book.author.age' must be less than or equal to 99
 
-``` python
+```python
 # wrong format
 my_metadata['author'][0]['age'] = 'thirty'
-checked_metadata = check_metadata(my_schema, my_metadata)
-[x for x in checked_metadata if x.name.startswith('mgs.book.author') and x.units == '1']
+avus = my_schema.to_avus(my_metadata)
+[x for x in avus if x.name.startswith('mgs.book.author') and x.units == '1']
 ```
 
-    WARNING:root:The values provided for `mgs.book.author.age` are not valid and will be ignored.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
 
-    [<iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>]
+    ValueError: invalid literal for int() with base 10: 'thirty'
+
+    
+    The above exception was the direct cause of the following exception:
+
+    ConversionError: 'book.author.age' cannot be converted to type integer, got value: 'thirty'
 
 Values are also checked if there are no minimum or maximum specified.
 
-``` python
+```python
 mini_md['market_price'] = 9.99
-checked_metadata = check_metadata(my_schema, mini_md)
-[x for x in checked_metadata if x.name.endswith('price')]
+avus = my_schema.to_avus(mini_md)
+[x for x in avus if x.name.endswith('price')]
 ```
+
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['cover_colors', 'ebook']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.market_price 9.99 None>]
 
 ### Dates, times and datetimes
+Dates, times and datetimes can be provided as `datetime.date`, `datetime.time` or `datetime.datetime` objects or as strings that can be converted as such via their `fromisoformat()` or `fromtimestamp()` methods. The final value is a string in ISO Format.
 
-Dates, times and datetimes can be provided as `datetime.date`,
-`datetime.time` or `datetime.datetime` objects or as strings that can be
-converted as such via their `fromisoformat()` or `fromtimestamp()`
-methods. The final value is a string in ISO Format.
-
-``` python
+```python
 from datetime import date
 import time
 ```
 
-``` python
+```python
 mini_md['publishing_date'] = date.today()
-check_metadata(my_schema, mini_md)
+my_schema.to_avus(mini_md)
 ```
 
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['cover_colors', 'ebook']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
+
     [<iRODSMeta None mgs.book.title I only have a title None>,
-     <iRODSMeta None mgs.book.publishing_date 2023-06-01 None>,
+     <iRODSMeta None mgs.book.publishing_date 2024-01-27 None>,
      <iRODSMeta None mgs.book.author.name Name Surname 1>,
      <iRODSMeta None mgs.book.author.email rightemail@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.market_price 9.99 None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
-``` python
+```python
 mini_md['publishing_date'] = date.fromtimestamp(time.time())
-check_metadata(my_schema, mini_md)
+my_schema.to_avus(mini_md)
 ```
+
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['cover_colors', 'ebook']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
     [<iRODSMeta None mgs.book.title I only have a title None>,
-     <iRODSMeta None mgs.book.publishing_date 2023-06-01 None>,
+     <iRODSMeta None mgs.book.publishing_date 2024-01-27 None>,
      <iRODSMeta None mgs.book.author.name Name Surname 1>,
      <iRODSMeta None mgs.book.author.email rightemail@kuleuven.be 1>,
+     <iRODSMeta None mgs.book.market_price 9.99 None>,
      <iRODSMeta None mgs.book.publisher Tor None>]
 
-``` python
+```python
 mini_md['publishing_date'] = '03/11/1990'
-check_metadata(my_schema, mini_md)
+my_schema.validate(mini_md)
 ```
 
-    ValueError: None of the values provided for `mgs.book.publishing_date` are valid.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+
+    ValueError: Invalid isoformat string: '03/11/1990'
+
+    
+    The above exception was the direct cause of the following exception:
+
+    ConversionError: 'book.publishing_date' cannot be converted to date, got value: '03/11/1990'
 
 ### URLs and emails
 
-``` python
+In the example below, _one_ of the provided emails is wrong, which will throw
+an error.
+
+```python
 my_metadata['author'][0]['age'] = 30
 my_metadata['author'][1]['email'].append('bademail@whatevs')
-check_metadata(my_schema, my_metadata)
+my_schema.validate(my_metadata)
 ```
 
-    WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: bademail@whatevs.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
-    [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
-     <iRODSMeta None mgs.book.author.age 30 1>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
-     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
-     <iRODSMeta None mgs.book.ebook Available None>,
-     <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
-     <iRODSMeta None mgs.book.cover_colors red None>,
-     <iRODSMeta None mgs.book.cover_colors blue None>,
-     <iRODSMeta None mgs.book.publisher Tor None>]
+    ValidationError: 'book.author.email' does not match pattern '^[^@]+@kuleuven.be$', got value: 'bademail@whatevs'
 
-``` python
+```python
 my_metadata['author'][1]['email'].pop()
 ```
 
     'bademail@whatevs'
 
-In the example above, *one* of the provided emails is wrong, and
-therefore it is just ignored. In the next section we see that if the
-value is missing or the only provided value is wrong, an error is
-thrown, because the field is required.
-
 ### Regular expressions
 
-URLs, emails and simple text can also have a `pattern` attribute
-providing a regular expression that checks its appropriateness. In the
-case of these emails, we have additional validation to make sure that
-the domain is “kuleuven.be”:
+URLs, emails and simple text can also have a `pattern` attribute providing a regular expression that checks its appropriateness. In the case of these emails, we have additional validation to make sure that the domain is "kuleuven.be":
 
-``` python
-my_schema.check_requirements('author')
+```python
+my_schema.print_requirements('author')
 ```
 
     Type: object.
     Required: True. (2 of its 3 fields are required.)
     Repeatable: True.
-
+    
     Composed of the following fields:
-    name
+    book.author.name
     Type: text.
     Required: True. Default: None.
     Repeatable: False.
-
-    age
+    
+    book.author.age
     Type: integer.
     Required: False.
     Repeatable: False.
     integer between 12 and 99.
-
-    email
+    
+    book.author.email
     Type: email.
     Required: True. Default: None.
     Repeatable: True.
-    matching the following regex: @kuleuven.be$.
+    fully matching the following regex: ^[^@]+@kuleuven.be$.
 
-``` python
+```python
 my_metadata['author'][0]['age'] = 30
 my_metadata['author'][1]['email'].append('wrong_domain@gmail.com')
-check_metadata(my_schema, my_metadata)
+my_schema.to_avus(my_metadata)
 ```
 
-    WARNING:root:The following values provided for `mgs.book.author.email` are not valid and will be ignored: wrong_domain@gmail.com.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
-    [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
-     <iRODSMeta None mgs.book.author.age 30 1>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
-     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
-     <iRODSMeta None mgs.book.ebook Available None>,
-     <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
-     <iRODSMeta None mgs.book.cover_colors red None>,
-     <iRODSMeta None mgs.book.cover_colors blue None>,
-     <iRODSMeta None mgs.book.publisher Tor None>]
+    ValidationError: 'book.author.email' does not match pattern '^[^@]+@kuleuven.be$', got value: 'wrong_domain@gmail.com'
 
-``` python
+```python
 my_metadata['author'][1]['email'].pop()
 ```
 
@@ -590,68 +689,77 @@ my_metadata['author'][1]['email'].pop()
 
 ### Composite fields
 
-Within composite fields, the same rules apply as for schemas. First,
-presence is checked: required values without default throw an error when
-they are missing, while other cases of missing or extra fields throw
-warnings only when `verbose` is `True`.
+Within composite fields, the same rules apply as for schemas. First, presence is checked: required
+values without default throw an error when they are missing, while other cases of missing
+or unknown fields will only write log messages (if log level set to `INFO`).
 
-Moreover, composite fields are never required themselves based on the
-schema, but they are required if any of their fields are required.
+Moreover, composite fields are never required themselves based on the schema,
+but they are required if any of their fields are required.
 
 As shown above, bad values throw warnings in all cases.
 
-``` python
+```python
 my_metadata['author'].append({'name' : 'etal'})
-check_metadata(my_schema, my_metadata)
+my_schema.validate(my_metadata)
 ```
 
-    KeyError: 'The following required fields are missing and there is no default: mgs.book.author.email.'
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
+    INFO:mango_mdschema:Missing required fields in 'book.author': ['email']
 
-``` python
-#error: true
+    ValidationError: Missing required fields in 'book.author': ['email']
+
+```python
 my_metadata['author'][2]['email'] = 'bademail.com'
-check_metadata(my_schema, my_metadata)
+my_schema.validate(my_metadata)
 ```
 
-    ValueError: None of the values provided for `mgs.book.author.email` are valid.
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
-``` python
+    ValidationError: 'book.author.email' does not match pattern '^[^@]+@kuleuven.be$', got value: 'bademail.com'
+
+```python
 my_metadata['author'][2]['email'] = 'bademail@kuleuven.be'
-check_metadata(my_schema, my_metadata)
+my_schema.validate(my_metadata)
 ```
 
-    [<iRODSMeta None mgs.book.title A book not written yet None>,
-     <iRODSMeta None mgs.book.author.name Fulano De Tal 1>,
-     <iRODSMeta None mgs.book.author.email fulano.detal@kuleuven.be 1>,
-     <iRODSMeta None mgs.book.author.age 30 1>,
-     <iRODSMeta None mgs.book.author.name Jane Doe 2>,
-     <iRODSMeta None mgs.book.author.email jane_doe@kuleuven.be 2>,
-     <iRODSMeta None mgs.book.author.email sweetdoe@kuleuven.be 2>,
-     <iRODSMeta None mgs.book.author.name etal 3>,
-     <iRODSMeta None mgs.book.author.email bademail@kuleuven.be 3>,
-     <iRODSMeta None mgs.book.ebook Available None>,
-     <iRODSMeta None mgs.book.publishing_date 2015-02-01 None>,
-     <iRODSMeta None mgs.book.cover_colors red None>,
-     <iRODSMeta None mgs.book.cover_colors blue None>,
-     <iRODSMeta None mgs.book.publisher Tor None>]
+    INFO:mango_mdschema:Applying default value to required field 'book.publisher': 'Tor'
+    INFO:mango_mdschema:Missing non-required fields in 'book': ['market_price']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
+    INFO:mango_mdschema:Missing non-required fields in 'book.author': ['age']
 
-# Final notes on implementation
+    {'title': 'A book not written yet',
+     'author': [{'name': 'Fulano De Tal',
+       'email': ['fulano.detal@kuleuven.be'],
+       'age': 30},
+      {'name': 'Jane Doe',
+       'email': ['jane_doe@kuleuven.be', 'sweetdoe@kuleuven.be']},
+      {'name': 'etal', 'email': ['bademail@kuleuven.be']}],
+     'ebook': 'Available',
+     'publishing_date': [datetime.date(2015, 2, 1)],
+     'cover_colors': ['red', 'blue'],
+     'publisher': 'Tor'}
+
+## Final notes on implementation
 
 The metadata can be applied to an object or collection `item` with
-`my_schema.apply(item, my_metadata)`, which basically calls
-`check_metadata()` and then provides the list to
-`item.metadata.apply_atomic_operations()`, adding each of the AVUs. In
-addition, another AVU is added with name `{prefix}.__version__`
-(e.g. `mgs.book.__version__`) indicating the version of the schema used
-for annotation (in this case, “2.0.0”).
+`my_schema.apply(item, my_metadata)`, which basically calls `to_avus()`
+on the schema and adds the generated list to `item.metadata.apply_atomic_operations()`,
+adding each of the AVUs.
+
+In addition, another AVU is added with name `{prefix}.__version__` (e.g. `mgs.book.__version__`)
+indicating the version of the schema used for annotation (in this case, "2.0.0").
 
 However, before actually adding the metadata, `apply()` does two things:
 
-- It checks whether there already is a `{prefix}.__version__` AVU and
-  prints a warning if it’s different from the version of the current
-  schema.
+- It checks whether there already is a `{prefix}.__version__` AVU and prints a
+warning if it's different from the version of the current schema.
 - It removes all existing metadata with the same prefix.
 
-This is the same behavior from the ManGO portal: it replaces all
-existing metadata linked to a schema with the metadata provided in this
-instance.
+This is the same behavior from the ManGO portal: it replaces all existing
+metadata linked to a schema with the metadata provided in this instance.
