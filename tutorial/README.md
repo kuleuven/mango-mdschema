@@ -11,7 +11,7 @@ This tutorial shows you
 You can install the package and it's dependencies with `pip`:
 
 ```python
-pip install "git+https://github.com/kuleuven/mango-schema-validator@1.0.0"
+pip install "git+https://github.com/kuleuven/mango-mdschema@1.0.0"
 ```
 
 > The package will be published to [Pypi](https://pypi.org/) in the future.

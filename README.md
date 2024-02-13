@@ -12,7 +12,7 @@ Small application to apply metadata from a metadata schema using iRODS PRC.
 You can install the package and it's dependencies with `pip`:
 
 ```
-pip install "git+https://github.com/kuleuven/mango-schema-validator@1.0.0"
+pip install "git+https://github.com/kuleuven/mango-mdschema@1.0.0"
 ```
 
 > The package will be published to [Pypi](https://pypi.org/) in the near future.
