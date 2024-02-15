@@ -8,7 +8,7 @@ name = "mango-mdschema"
 description = "ManGO metadata schemas on iRODS"
 readme = "README.md"
 requires-python = ">=3.8"
-version = "1.0.0"
+version = "1.0.1"
 license = {file = "LICENSE"}
 authors = [
     { name = "Mariana Montes", email = "mariana.montes@kuleuven.be" },
@@ -16,7 +16,7 @@ authors = [
 ]
 
 [project.urls]
-repository = "https://github.com/kuleuven/mango-schema-validator"
+repository = "https://github.com/kuleuven/mango-mdschema"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
