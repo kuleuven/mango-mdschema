@@ -27,3 +27,6 @@ include = ['mango_mdschema', 'mango_mdschema.*']
 
 [tool.pylint."messages control"]
 disable = ["too-many-arguments"]
+
+[tool.pylint.reports]
+output-format = ["colorized"]
