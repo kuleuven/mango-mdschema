@@ -231,11 +231,17 @@ class TestFields(unittest.TestCase):
         with self.assertRaises(ValidationError):
             field.validate(["option2"])
         field.required = True
+        with self.assertRaises(ValidationError):
+            field.validate("option5")
         field.default = "option1"
         field.multiple = True
-        self.assertEqual(field.validate(None), ["option1"], msg="default value with multiple=True")
+        self.assertEqual(
+            field.validate(None), ["option1"], msg="default value with multiple=True"
+        )
         field.multiple = False
-        self.assertEqual(field.validate(None), "option1", msg="default value with multiple=False")
+        self.assertEqual(
+            field.validate(None), "option1", msg="default value with multiple=False"
+        )
 
     def test_repeatable_field(self):
         subfield = TextField("repeatable")

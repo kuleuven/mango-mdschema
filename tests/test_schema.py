@@ -273,6 +273,13 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.assertEqual(context.exception.field, "book.author.email")
         self.assertEqual(context.exception.value, "invalid-email")
 
+        invalid_metadata[0]["publishing_date"] = "2025-02-01"
+        invalid_metadata[0]["publisher"] = "invalid-publisher"
+        with self.assertRaises(ValidationError, msg="Invalid value") as context:
+            self.schema.validate(invalid_metadata[0])
+        self.assertEqual(context.exception.field, "book.publisher")
+        self.assertEqual(context.exception.value, "invalid-publisher")
+
     def test_convert_metadata(self):
         for i, metadata in enumerate(self.metadata):
             # Convert the sample metadata to the iRODS AVU format

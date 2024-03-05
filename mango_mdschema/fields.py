@@ -789,20 +789,12 @@ class MultipleField(Field):
                 self.name,
                 value,
             )
-        if self.multiple:
-            if not all(x in self.choices for x in value):
-                raise ValidationError(
-                    f"'{self.name}' must be list with all values in {self.choices}, got {value}",
-                    self.name,
-                    value,
-                )
-        else:
-            if value not in self.choices:
-                raise ValidationError(
-                    f"'{self.name}' must be one of {self.choices}, got '{value}'",
-                    self.name,
-                    value,
-                )
+        elif not self.multiple and value not in self.choices:
+            raise ValidationError(
+                f"'{self.name}' must be one of {self.choices}, got '{value}'",
+                self.name,
+                value,
+            )
 
     def convert(self, value):
         if isinstance(value, list):  # if we have multiple values
@@ -823,10 +815,18 @@ class MultipleField(Field):
                         value,
                     )
                 return []
+            if not all(v in self.choices for v in values):
+                logger.info(
+                    f"Some values in '{self.name}' were not allowed and are discarded. Allowed values: {self.choices}."
+                )
             return [v for v in values if v in self.choices]
         # if we have only one value
-        value = str(value) if value is not None else None
-        return value if value in self.choices else None
+        if value not in self.choices and not self.required:
+            logger.info(
+                f"'{self.name} must be one of the following values: '{self.choices}', got '{value}'. It was discarded."
+            )
+            value = None
+        return str(value) if value is not None else None
 
 
 class RepeatableField(Field):
