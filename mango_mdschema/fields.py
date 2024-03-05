@@ -817,13 +817,18 @@ class MultipleField(Field):
                 return []
             if not all(v in self.choices for v in values):
                 logger.info(
-                    f"Some values in '{self.name}' were not allowed and are discarded. Allowed values: {self.choices}."
+                    "Some values in '%s' were not allowed and are discarded. Allowed values: %s.",
+                    self.name,
+                    ", ".join(self.choices),
                 )
             return [v for v in values if v in self.choices]
         # if we have only one value
         if value not in self.choices and not self.required:
             logger.info(
-                f"'{self.name} must be one of the following values: '{self.choices}', got '{value}'. It was discarded."
+                "'%s' must be one of the following values: %s; got '%s'. It was discarded.",
+                self.name,
+                ", ".join(self.choices),
+                value,
             )
             value = None
         return str(value) if value is not None else None
