@@ -213,7 +213,7 @@ class TextField(SimpleField):
         if self.type == "textarea":
             self.pattern = None  # no pattern support for "textarea"
         else:
-            self.pattern = params.get("pattern", None)
+            self.pattern = params.get("pattern", None) or None
             if (
                 self.pattern is not None
                 and not self.pattern.startswith("^")
