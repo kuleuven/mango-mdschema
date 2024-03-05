@@ -51,7 +51,7 @@ jobs:
       id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
       - name: Download dists
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: package-distribution
           path: dist/
