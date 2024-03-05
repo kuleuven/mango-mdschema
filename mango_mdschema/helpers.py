@@ -1,4 +1,5 @@
 """Helper functions for the mango_mdschema package."""
+
 from datetime import datetime, date, time
 import re
 from collections.abc import MutableMapping
@@ -141,6 +142,8 @@ def flattened_to_mango_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
         value = value.isoformat()
     elif isinstance(value, bool):
         value = str(value).lower()
+    elif isinstance(value, (int, float)):
+        value = str(value)
     # The flattened key is a string with the format 'a[0].b.c[1].e' and
     # this is converted to a triple (name, value, units) with the format
     # ('a.b.c.d.e', value, '1.0.2').
