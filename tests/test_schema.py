@@ -128,7 +128,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 "publishing_date": "2024-01-01",
                 "cover": {"type": "soft"},
                 "ebook": "Available",
-                "summary": None
+                "summary": None,
             },
         ]
 
@@ -150,7 +150,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 ),
                 iRODSMeta(
                     name="mgs.book.author.age",
-                    value=self.metadata[0]["author"][0]["age"],
+                    value=str(self.metadata[0]["author"][0]["age"]),
                     units="1",
                 ),
                 iRODSMeta(
@@ -195,7 +195,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 ),
                 iRODSMeta(
                     name="mgs.book.author.age",
-                    value=self.metadata[1]["author"][0]["age"],
+                    value=str(self.metadata[1]["author"][0]["age"]),
                     units="1",
                 ),
                 iRODSMeta(
@@ -210,7 +210,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
                 ),
                 iRODSMeta(
                     name="mgs.book.author.age",
-                    value=self.metadata[1]["author"][1]["age"],
+                    value=str(self.metadata[1]["author"][1]["age"]),
                     units="2",
                 ),
                 iRODSMeta(
@@ -249,9 +249,11 @@ class TestApplyAndExtractSchema(unittest.TestCase):
             )
             self.assertEqual(
                 result["publisher"],
-                metadata["publisher"]
-                if "publisher" in metadata
-                else self.schema.fields["publisher"].default,
+                (
+                    metadata["publisher"]
+                    if "publisher" in metadata
+                    else self.schema.fields["publisher"].default
+                ),
                 msg=f"Sample {i}",
             )
 
@@ -286,6 +288,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
     def test_apply_metadata_to_collection(self):
         # Apply the sample metadata to the mock iRODSCollection object
         self.schema.apply(self.collection, self.metadata[0])
+        assert all(isinstance(x.value, str) for x in self.avus[0])
 
         # Perform assertions on AVU operations
         added = [AVUOperation(operation="add", avu=x) for x in self.avus[0]] + [
@@ -308,6 +311,7 @@ class TestApplyAndExtractSchema(unittest.TestCase):
             iRODSMeta("mgs.book.__version__", "1.0.0")
         ]
         self.schema.apply(self.collection, self.metadata[1])
+        assert all(isinstance(x.value, str) for x in self.avus[0])
 
         # Perform assertions on AVU operations
         added = [AVUOperation(operation="add", avu=x) for x in self.avus[1]] + [
@@ -355,10 +359,15 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.data_object.reset_mock()
         self.data_object.metadata.items.return_value = [
             iRODSMeta(
-                name="mgs.other_schema.title", value="Title for other schema", units=None
+                name="mgs.other_schema.title",
+                value="Title for other schema",
+                units=None,
             ),
-            iRODSMeta(name="subject.length", value="11", units="cm",
-            )
+            iRODSMeta(
+                name="subject.length",
+                value="11",
+                units="cm",
+            ),
         ]
 
         # Extract the metadata from the mock iRODSDataObject

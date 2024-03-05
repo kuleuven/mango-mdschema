@@ -2,7 +2,12 @@
 
 import unittest
 from irods.meta import iRODSMeta
-from mango_mdschema.helpers import flatten, flattened_from_mango_avu, flattened_to_mango_avu, unflatten
+from mango_mdschema.helpers import (
+    flatten,
+    flattened_from_mango_avu,
+    flattened_to_mango_avu,
+    unflatten,
+)
 
 
 class TestFlattening(unittest.TestCase):
@@ -88,10 +93,10 @@ class TestAVUFlattening(unittest.TestCase):
         # Test case 2: List of tuples with simple fields
         input_list = [("a", 1), ("b", 2), ("c", 3), ("d", 4)]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a", value=1, units=None),
-            iRODSMeta(name=f"{prefix}.b", value=2, units=None),
-            iRODSMeta(name=f"{prefix}.c", value=3, units=None),
-            iRODSMeta(name=f"{prefix}.d", value=4, units=None),
+            iRODSMeta(name=f"{prefix}.a", value="1", units=None),
+            iRODSMeta(name=f"{prefix}.b", value="2", units=None),
+            iRODSMeta(name=f"{prefix}.c", value="3", units=None),
+            iRODSMeta(name=f"{prefix}.d", value="4", units=None),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -102,10 +107,10 @@ class TestAVUFlattening(unittest.TestCase):
         # Test case 3: List of tuples with nested fields
         input_list = [("a.b.c", 1), ("a.b.d", 2), ("a.e", 3), ("f", 4)]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a.b.c", value=1, units="1.1"),
-            iRODSMeta(name=f"{prefix}.a.b.d", value=2, units="1.1"),
-            iRODSMeta(name=f"{prefix}.a.e", value=3, units="1"),
-            iRODSMeta(name=f"{prefix}.f", value=4, units=None),
+            iRODSMeta(name=f"{prefix}.a.b.c", value="1", units="1.1"),
+            iRODSMeta(name=f"{prefix}.a.b.d", value="2", units="1.1"),
+            iRODSMeta(name=f"{prefix}.a.e", value="3", units="1"),
+            iRODSMeta(name=f"{prefix}.f", value="4", units=None),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -123,12 +128,12 @@ class TestAVUFlattening(unittest.TestCase):
             ("g.h[1].j", 6),
         ]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a.b.c", value=1, units="1.1"),
-            iRODSMeta(name=f"{prefix}.a.b.c", value=2, units="2.1"),
-            iRODSMeta(name=f"{prefix}.e.f", value=3, units="1"),
-            iRODSMeta(name=f"{prefix}.e.f", value=4, units="1"),
-            iRODSMeta(name=f"{prefix}.g.h.i", value=5, units="1.1"),
-            iRODSMeta(name=f"{prefix}.g.h.j", value=6, units="1.2"),
+            iRODSMeta(name=f"{prefix}.a.b.c", value="1", units="1.1"),
+            iRODSMeta(name=f"{prefix}.a.b.c", value="2", units="2.1"),
+            iRODSMeta(name=f"{prefix}.e.f", value="3", units="1"),
+            iRODSMeta(name=f"{prefix}.e.f", value="4", units="1"),
+            iRODSMeta(name=f"{prefix}.g.h.i", value="5", units="1.1"),
+            iRODSMeta(name=f"{prefix}.g.h.j", value="6", units="1.2"),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -160,26 +165,26 @@ class TestAVUFlattening(unittest.TestCase):
             "w": {"x": [{"y": 20}, {"y": 21}], "z": 22},
         }
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a", value=1, units=None),
-            iRODSMeta(name=f"{prefix}.b.c", value=2, units="1"),
-            iRODSMeta(name=f"{prefix}.b.d.e", value=3, units="1.1"),
-            iRODSMeta(name=f"{prefix}.b.d.f", value=4, units="1.1"),
-            iRODSMeta(name=f"{prefix}.b.i", value=7, units="1"),
-            iRODSMeta(name=f"{prefix}.j.k", value=8, units="1"),
-            iRODSMeta(name=f"{prefix}.j.l", value=9, units="1"),
-            iRODSMeta(name=f"{prefix}.j.m", value=10, units="2"),
-            iRODSMeta(name=f"{prefix}.j.n", value=11, units="2"),
-            iRODSMeta(name=f"{prefix}.o", value=12, units=None),
-            iRODSMeta(name=f"{prefix}.o", value=13, units=None),
-            iRODSMeta(name=f"{prefix}.p.q.r", value=14, units="1.1"),
-            iRODSMeta(name=f"{prefix}.p.q.r", value=15, units="1.2"),
-            iRODSMeta(name=f"{prefix}.p.s", value=16, units="1"),
-            iRODSMeta(name=f"{prefix}.p.t.u", value=17, units="2.1"),
-            iRODSMeta(name=f"{prefix}.p.t.u", value=18, units="2.2"),
-            iRODSMeta(name=f"{prefix}.p.v", value=19, units="2"),
-            iRODSMeta(name=f"{prefix}.w.x.y", value=20, units="1.1"),
-            iRODSMeta(name=f"{prefix}.w.x.y", value=21, units="1.2"),
-            iRODSMeta(name=f"{prefix}.w.z", value=22, units="1"),
+            iRODSMeta(name=f"{prefix}.a", value="1", units=None),
+            iRODSMeta(name=f"{prefix}.b.c", value="2", units="1"),
+            iRODSMeta(name=f"{prefix}.b.d.e", value="3", units="1.1"),
+            iRODSMeta(name=f"{prefix}.b.d.f", value="4", units="1.1"),
+            iRODSMeta(name=f"{prefix}.b.i", value="7", units="1"),
+            iRODSMeta(name=f"{prefix}.j.k", value="8", units="1"),
+            iRODSMeta(name=f"{prefix}.j.l", value="9", units="1"),
+            iRODSMeta(name=f"{prefix}.j.m", value="10", units="2"),
+            iRODSMeta(name=f"{prefix}.j.n", value="11", units="2"),
+            iRODSMeta(name=f"{prefix}.o", value="12", units=None),
+            iRODSMeta(name=f"{prefix}.o", value="13", units=None),
+            iRODSMeta(name=f"{prefix}.p.q.r", value="14", units="1.1"),
+            iRODSMeta(name=f"{prefix}.p.q.r", value="15", units="1.2"),
+            iRODSMeta(name=f"{prefix}.p.s", value="16", units="1"),
+            iRODSMeta(name=f"{prefix}.p.t.u", value="17", units="2.1"),
+            iRODSMeta(name=f"{prefix}.p.t.u", value="18", units="2.2"),
+            iRODSMeta(name=f"{prefix}.p.v", value="19", units="2"),
+            iRODSMeta(name=f"{prefix}.w.x.y", value="20", units="1.1"),
+            iRODSMeta(name=f"{prefix}.w.x.y", value="21", units="1.2"),
+            iRODSMeta(name=f"{prefix}.w.z", value="22", units="1"),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), flatten(input_dict))),
@@ -225,21 +230,21 @@ class TestAVUFlattening(unittest.TestCase):
 
         To handle this ambiguity, the `CompositeField` class will convert the
         list of dictionaries back to a single dictionary with the first element
-        of the list when the CompositeField is not repeatable.        
+        of the list when the CompositeField is not repeatable.
         """
 
         prefix = self.schema_prefix
 
         input_dict = {
-            "a": 1,
-            "b": {"c": 2, "d": {"e": 3, "f": 4, "g": 5, "h": 6}, "i": 7},
-            "j": [{"k": 8, "l": 9}, {"m": 10, "n": 11}],
-            "o": [12, 13],
+            "a": "1",
+            "b": {"c": "2", "d": {"e": "3", "f": "4", "g": "5", "h": "6"}, "i": "7"},
+            "j": [{"k": "8", "l": "9"}, {"m": "10", "n": "11"}],
+            "o": ["12", "13"],
             "p": [
-                {"q": [{"r": 14}, {"r": 15}], "s": 16},
-                {"t": [{"u": 17}, {"u": 18}], "v": 19},
+                {"q": [{"r": "14"}, {"r": "15"}], "s": "16"},
+                {"t": [{"u": "17"}, {"u": "18"}], "v": "19"},
             ],
-            "w": {"x": [{"y": 20}, {"y": 21}], "z": 22},
+            "w": {"x": [{"y": "20"}, {"y": "21"}], "z": "22"},
         }
 
         # The following function will convert non-repeatable composite fields to
@@ -253,12 +258,16 @@ class TestAVUFlattening(unittest.TestCase):
                     # convert non-repeatable composite fields to repeatable composite fields
                     d[key] = [handle_non_repeatable_composite_fields(value)]
                 elif isinstance(value, list):
-                    d[key] = [handle_non_repeatable_composite_fields(item) for item in value]
+                    d[key] = [
+                        handle_non_repeatable_composite_fields(item) for item in value
+                    ]
             return d
 
         expected_dict = handle_non_repeatable_composite_fields(input_dict)
 
-        avus = list(map(lambda x: flattened_to_mango_avu(x, prefix), flatten(input_dict)))
+        avus = list(
+            map(lambda x: flattened_to_mango_avu(x, prefix), flatten(input_dict))
+        )
         self.assertEqual(
             unflatten(list(map(lambda x: flattened_from_mango_avu(x, prefix), avus))),
             expected_dict,
