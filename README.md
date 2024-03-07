@@ -9,13 +9,11 @@ Small application to apply metadata from a metadata schema using iRODS PRC.
 
 ## Installation
 
-You can install the package and it's dependencies with `pip`:
+You can install the package and its dependencies with `pip`:
 
 ```
-pip install "git+https://github.com/kuleuven/mango-mdschema@1.0.1"
+pip install mango-mdschema
 ```
-
-> The package will be published to [Pypi](https://pypi.org/) in the near future.
 
 ## Usage
 

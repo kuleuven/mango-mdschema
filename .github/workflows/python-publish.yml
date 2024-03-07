@@ -59,7 +59,8 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
   testpypi-publish:
     name: Upload release to TestPyPI
-    # upload to TestPyPI on every push to main
+    # upload to TestPyPI on every push to main, not with tags
+    if: (!startsWith(github.ref, 'refs/tags/'))
     needs:
       - build
     runs-on: ubuntu-latest
