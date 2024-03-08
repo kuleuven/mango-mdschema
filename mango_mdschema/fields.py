@@ -814,11 +814,17 @@ class MultipleField(Field):
                         self.name,
                         value,
                     )
-                return []
-            if not all(v in self.choices for v in values):
                 logger.info(
-                    "Some values in '%s' were not allowed and are discarded. Allowed values: %s.",
+                    "The values provided for '%s' were not allowed and are discarded. Allowed values: %s; got: %s.",
                     self.name,
+                    ", ".join(self.choices),
+                    ", ".join(value),
+                )
+            elif not all(v in self.choices for v in values):
+                logger.info(
+                    "Some values in '%s' were not allowed and are discarded: %s. Allowed values: %s.",
+                    self.name,
+                    ", ".join(v for v in value if not v in self.choices),
                     ", ".join(self.choices),
                 )
             return [v for v in values if v in self.choices]

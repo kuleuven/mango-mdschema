@@ -216,7 +216,18 @@ class TestFields(unittest.TestCase):
         self.assertEqual(field.validate([]), [])
         self.assertEqual(field.validate(None), None)
         self.assertEqual(field.validate(["option3", "option4"]), ["option3"])
-        self.assertEqual(field.validate(["option5"]), [])
+        with self.assertLogs("mango_mdschema", level="INFO") as invalid_multiple:
+            only_option_bad = field.validate(["option5"])
+            some_options_bad = field.validate(["option3", "option4"])
+        self.assertEqual(only_option_bad, [])
+        self.assertEqual(some_options_bad, ["option3"])
+        self.assertEqual(
+            invalid_multiple.output,
+            [
+                "INFO:mango_mdschema:The values provided for 'multiple_field' were not allowed and are discarded. Allowed values: option1, option2, option3; got: option5.",
+                "INFO:mango_mdschema:Some values in 'multiple_field' were not allowed and are discarded: option4. Allowed values: option1, option2, option3.",
+            ],
+        )
         field.required = True
         self.assertEqual(field.validate(["option3", "option4"]), ["option3"])
         with self.assertRaises(ValidationError):
@@ -224,7 +235,15 @@ class TestFields(unittest.TestCase):
         field.multiple = False
         field.required = False
         self.assertEqual(field.validate("option3"), "option3")
-        self.assertEqual(field.validate("option5"), None)
+        with self.assertLogs("mango_mdschema", level="INFO") as invalid_single:
+            invalid_option = field.validate("option5")
+        self.assertEqual(invalid_option, None)
+        self.assertEqual(
+            invalid_single.output,
+            [
+                "INFO:mango_mdschema:'multiple_field' must be one of the following values: option1, option2, option3; got 'option5'. It was discarded."
+            ],
+        )
         self.assertEqual(field.validate(None), None)
         with self.assertRaises(ValidationError):
             field.validate(["option1", "option4"])
