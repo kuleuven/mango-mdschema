@@ -1,12 +1,17 @@
 """Module containing the Schema class."""
+
 from collections.abc import MutableMapping
+import io
 import json
 import logging
+import pathlib
 import warnings
 from typing import Union, List
 
 from irods.data_object import iRODSDataObject
 from irods.collection import iRODSCollection
+from irods.exception import CollectionDoesNotExist
+from irods.session import iRODSSession
 from irods.meta import AVUOperation, iRODSMeta
 
 from .constants import NAME_DELIMITER
@@ -32,6 +37,51 @@ from .fields import (
 )
 
 logger = logging.getLogger("mango_mdschema")
+
+
+def get_mango_schema(
+    session: iRODSSession,
+    realm: str,
+    schema_name: str,
+    status: str = "published",
+    version: str | None = None,
+) -> iRODSDataObject:
+    schemas_path = str(
+        pathlib.Path("/", session.zone, "mango", realm, "schemas", schema_name)
+    )
+    try:
+        schemas_collection: iRODSCollection = session.collections.get(schemas_path)
+    except CollectionDoesNotExist:
+        raise ValueError(f"No schemas found in ManGO for {schema_name} in {realm}!")
+    schemas = schemas_collection.data_objects
+    with_status = [
+        schema
+        for schema in schemas
+        if schema.get_one("mg.schema.status").value == status
+    ]
+    if not with_status:
+        raise ValueError(
+            f"No schemas found for {schema_name} in {realm} with status {status}!"
+        )
+    if len(with_status) > 1 and version is not None:
+        with_version = [
+            schema
+            for schema in with_status
+            if schema.get_one("mg.schema.version").value == version
+        ]
+        if not with_version:
+            raise ValueError(
+                f"No schemas found for {schema_name} in {realm} with status {status} and version {version}!"
+            )
+        schema = with_version[0]
+    else:
+        if len(with_status) > 1:
+            logging.warning(
+                "Multiple schemas with the same name and status, will use the first one!"
+            )
+        schema = with_status[0]
+    logging.info(f"Found the following schema: {schema.name}")
+    return schema
 
 
 class Schema:
@@ -64,7 +114,7 @@ class Schema:
         "object": CompositeField,
     }
 
-    def __init__(self, path: str, prefix: str = "mgs"):
+    def __init__(self, path: str | pathlib.Path | iRODSDataObject, prefix: str = "mgs"):
         """Init a Schema object from a JSON file.
 
         Args:
@@ -79,16 +129,22 @@ class Schema:
             ValueError: When the schema is not published.
         """
         # TODO allow the path to be a pathlib.Path or io.TextIOWrapper
+        if isinstance(path, str):
+            f = open(path, "r", encoding="utf-8")
+        elif isinstance(path, pathlib.Path) or isinstance(path, iRODSDataObject):
+            f = path.open("r")
+        else:
+            raise TypeError("'path' must be a string, a pathlib path or a data object")
+        try:
+            schema = json.load(f)
+        except IOError as err:
+            raise IOError(
+                "There was an error opening or loading your schema from the requested path."
+            ) from err
+        except json.JSONDecodeError as err:
+            raise IOError("There was an error decoding the JSON schema.") from err
+        f.close()
 
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                schema = json.load(f)
-            except IOError as err:
-                raise IOError(
-                    "There was an error opening or loading your schema from the requested path."
-                ) from err
-            except json.JSONDecodeError as err:
-                raise IOError("There was an error decoding the JSON schema.") from err
         # check that all necessary fields are present
         required_fields = ["schema_name", "version", "status", "properties"]
         if sum(x not in schema for x in required_fields) > 0:
@@ -164,7 +220,9 @@ class Schema:
             else RepeatableField(field=field)
         )
 
-    def validate(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+    def validate(
+        self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True
+    ):
         """Validate a dictionary of metadata against the schema.
 
         Validation is a 2 step process: First the values in the metadata dictionary
@@ -211,7 +269,7 @@ class Schema:
         item: Union[iRODSCollection, iRODSDataObject],
         metadata: MutableMapping,
         convert: bool = True,
-        set_defaults: bool = True
+        set_defaults: bool = True,
     ):
         """Apply metadata to an iRODS data object or collection.
 
@@ -277,17 +335,15 @@ class Schema:
         """
         # get all AVUs linked to this metadata schema
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
-        avus = [
-            avu
-            for avu in item.metadata.items()
-            if avu.name.startswith(prefix)
-        ]
+        avus = [avu for avu in item.metadata.items() if avu.name.startswith(prefix)]
         # convert AVUs to a dictionary
         metadata = self.from_avus(avus)
         # convert metadata to their Python representation
         return self.convert(metadata)
 
-    def to_avus(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+    def to_avus(
+        self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True
+    ):
         """Generate AVUs from a dictionary of metadata.
 
         Before flattening, the metadata is first converted to the expected Python
