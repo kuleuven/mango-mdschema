@@ -43,44 +43,22 @@ def get_mango_schema(
     session: iRODSSession,
     realm: str,
     schema_name: str,
-    status: str = "published",
-    version: str | None = None,
 ) -> iRODSDataObject:
     schemas_path = str(
         pathlib.Path("/", session.zone, "mango", realm, "schemas", schema_name)
     )
     try:
-        schemas_collection: iRODSCollection = session.collections.get(schemas_path)
+        schemas_collection = session.collections.get(schemas_path)
     except CollectionDoesNotExist:
         raise ValueError(f"No schemas found in ManGO for {schema_name} in {realm}!")
-    schemas = schemas_collection.data_objects
-    with_status = [
-        schema
-        for schema in schemas
-        if schema.get_one("mg.schema.status").value == status
-    ]
-    if not with_status:
-        raise ValueError(
-            f"No schemas found for {schema_name} in {realm} with status {status}!"
-        )
-    if len(with_status) > 1 and version is not None:
-        with_version = [
-            schema
-            for schema in with_status
-            if schema.get_one("mg.schema.version").value == version
-        ]
-        if not with_version:
-            raise ValueError(
-                f"No schemas found for {schema_name} in {realm} with status {status} and version {version}!"
-            )
-        schema = with_version[0]
-    else:
-        if len(with_status) > 1:
-            logging.warning(
-                "Multiple schemas with the same name and status, will use the first one!"
-            )
-        schema = with_status[0]
-    logging.info(f"Found the following schema: {schema.name}")
+    schema = None
+    for _schema in schemas_collection.data_objects:
+        if _schema.metadata.get_one("mg.lifecycle_status").value == "published":
+            schema = _schema
+            break
+    if schema is None:
+        raise ValueError(f"No published schemas found for {schema_name} in {realm}!")
+    logging.info(f"Found the following schema: {schema_name}")
     return schema
 
 
