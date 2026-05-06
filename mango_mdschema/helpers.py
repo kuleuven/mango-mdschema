@@ -164,9 +164,9 @@ def flattened_to_mango_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
     name = re.sub(r"\[\d+\]", "", key)  # remove list indices from the normalized key
     units = ".".join(indices).rstrip(".0")  # remove trailing zero indices
     return iRODSMeta(
-        name=f"{prefix}.{name}" if prefix else name,
-        value=value,
-        units=units if units != "" else None,
+        f"{prefix}.{name}" if prefix else name,
+        value,
+        units if units != "" else None,
     )
 
 
