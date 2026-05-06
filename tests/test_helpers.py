@@ -93,10 +93,10 @@ class TestAVUFlattening(unittest.TestCase):
         # Test case 2: List of tuples with simple fields
         input_list = [("a", 1), ("b", 2), ("c", 3), ("d", 4)]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a", value="1", units=None),
-            iRODSMeta(name=f"{prefix}.b", value="2", units=None),
-            iRODSMeta(name=f"{prefix}.c", value="3", units=None),
-            iRODSMeta(name=f"{prefix}.d", value="4", units=None),
+            iRODSMeta(f"{prefix}.a", "1", None),
+            iRODSMeta(f"{prefix}.b", "2", None),
+            iRODSMeta(f"{prefix}.c", "3", None),
+            iRODSMeta(f"{prefix}.d", "4", None),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -107,10 +107,10 @@ class TestAVUFlattening(unittest.TestCase):
         # Test case 3: List of tuples with nested fields
         input_list = [("a.b.c", 1), ("a.b.d", 2), ("a.e", 3), ("f", 4)]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a.b.c", value="1", units="1.1"),
-            iRODSMeta(name=f"{prefix}.a.b.d", value="2", units="1.1"),
-            iRODSMeta(name=f"{prefix}.a.e", value="3", units="1"),
-            iRODSMeta(name=f"{prefix}.f", value="4", units=None),
+            iRODSMeta(f"{prefix}.a.b.c", "1", "1.1"),
+            iRODSMeta(f"{prefix}.a.b.d", "2", "1.1"),
+            iRODSMeta(f"{prefix}.a.e", "3", "1"),
+            iRODSMeta(f"{prefix}.f", "4", None),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -128,12 +128,12 @@ class TestAVUFlattening(unittest.TestCase):
             ("g.h[1].j", 6),
         ]
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a.b.c", value="1", units="1.1"),
-            iRODSMeta(name=f"{prefix}.a.b.c", value="2", units="2.1"),
-            iRODSMeta(name=f"{prefix}.e.f", value="3", units="1"),
-            iRODSMeta(name=f"{prefix}.e.f", value="4", units="1"),
-            iRODSMeta(name=f"{prefix}.g.h.i", value="5", units="1.1"),
-            iRODSMeta(name=f"{prefix}.g.h.j", value="6", units="1.2"),
+            iRODSMeta(f"{prefix}.a.b.c", "1", "1.1"),
+            iRODSMeta(f"{prefix}.a.b.c", "2", "2.1"),
+            iRODSMeta(f"{prefix}.e.f", "3", "1"),
+            iRODSMeta(f"{prefix}.e.f", "4", "1"),
+            iRODSMeta(f"{prefix}.g.h.i", "5", "1.1"),
+            iRODSMeta(f"{prefix}.g.h.j", "6", "1.2"),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), input_list)),
@@ -165,26 +165,26 @@ class TestAVUFlattening(unittest.TestCase):
             "w": {"x": [{"y": 20}, {"y": 21}], "z": 22},
         }
         expected_output = [
-            iRODSMeta(name=f"{prefix}.a", value="1", units=None),
-            iRODSMeta(name=f"{prefix}.b.c", value="2", units="1"),
-            iRODSMeta(name=f"{prefix}.b.d.e", value="3", units="1.1"),
-            iRODSMeta(name=f"{prefix}.b.d.f", value="4", units="1.1"),
-            iRODSMeta(name=f"{prefix}.b.i", value="7", units="1"),
-            iRODSMeta(name=f"{prefix}.j.k", value="8", units="1"),
-            iRODSMeta(name=f"{prefix}.j.l", value="9", units="1"),
-            iRODSMeta(name=f"{prefix}.j.m", value="10", units="2"),
-            iRODSMeta(name=f"{prefix}.j.n", value="11", units="2"),
-            iRODSMeta(name=f"{prefix}.o", value="12", units=None),
-            iRODSMeta(name=f"{prefix}.o", value="13", units=None),
-            iRODSMeta(name=f"{prefix}.p.q.r", value="14", units="1.1"),
-            iRODSMeta(name=f"{prefix}.p.q.r", value="15", units="1.2"),
-            iRODSMeta(name=f"{prefix}.p.s", value="16", units="1"),
-            iRODSMeta(name=f"{prefix}.p.t.u", value="17", units="2.1"),
-            iRODSMeta(name=f"{prefix}.p.t.u", value="18", units="2.2"),
-            iRODSMeta(name=f"{prefix}.p.v", value="19", units="2"),
-            iRODSMeta(name=f"{prefix}.w.x.y", value="20", units="1.1"),
-            iRODSMeta(name=f"{prefix}.w.x.y", value="21", units="1.2"),
-            iRODSMeta(name=f"{prefix}.w.z", value="22", units="1"),
+            iRODSMeta(f"{prefix}.a", "1", None),
+            iRODSMeta(f"{prefix}.b.c", "2", "1"),
+            iRODSMeta(f"{prefix}.b.d.e", "3", "1.1"),
+            iRODSMeta(f"{prefix}.b.d.f", "4", "1.1"),
+            iRODSMeta(f"{prefix}.b.i", "7", "1"),
+            iRODSMeta(f"{prefix}.j.k", "8", "1"),
+            iRODSMeta(f"{prefix}.j.l", "9", "1"),
+            iRODSMeta(f"{prefix}.j.m", "10", "2"),
+            iRODSMeta(f"{prefix}.j.n", "11", "2"),
+            iRODSMeta(f"{prefix}.o", "12", None),
+            iRODSMeta(f"{prefix}.o", "13", None),
+            iRODSMeta(f"{prefix}.p.q.r", "14", "1.1"),
+            iRODSMeta(f"{prefix}.p.q.r", "15", "1.2"),
+            iRODSMeta(f"{prefix}.p.s", "16", "1"),
+            iRODSMeta(f"{prefix}.p.t.u", "17", "2.1"),
+            iRODSMeta(f"{prefix}.p.t.u", "18", "2.2"),
+            iRODSMeta(f"{prefix}.p.v", "19", "2"),
+            iRODSMeta(f"{prefix}.w.x.y", "20", "1.1"),
+            iRODSMeta(f"{prefix}.w.x.y", "21", "1.2"),
+            iRODSMeta(f"{prefix}.w.z", "22", "1"),
         ]
         self.assertEqual(
             list(map(lambda x: flattened_to_mango_avu(x, prefix), flatten(input_dict))),
@@ -208,11 +208,11 @@ class TestAVUFlattening(unittest.TestCase):
         is converted to the following list of AVUs:
 
         [
-            iRODSMeta(name="mgs.test.a", value=1, units=None),
-            iRODSMeta(name="mgs.test.b.c", value=2, units="1"),
-            iRODSMeta(name="mgs.test.b.d.e", value=3, units="1.1"),
-            iRODSMeta(name="mgs.test.b.d.f", value=4, units="1.1"),
-            iRODSMeta(name="mgs.test.b.i", value=7, units="1"),
+            iRODSMeta("mgs.test.a", 1, None),
+            iRODSMeta("mgs.test.b.c", 2, "1"),
+            iRODSMeta("mgs.test.b.d.e", 3, "1.1"),
+            iRODSMeta("mgs.test.b.d.f", 4, "1.1"),
+            iRODSMeta("mgs.test.b.i", 7, "1"),
         ]
 
         When this list of AVUs is converted back to a nested dictionary, the

@@ -136,100 +136,100 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.avus = [
             [
                 iRODSMeta(
-                    name="mgs.book.title", value=self.metadata[0]["title"], units=None
+                    "mgs.book.title", self.metadata[0]["title"], None
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.name",
-                    value=self.metadata[0]["author"][0]["name"],
-                    units="1",
+                    "mgs.book.author.name",
+                    self.metadata[0]["author"][0]["name"],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.email",
-                    value=self.metadata[0]["author"][0]["email"][0],
-                    units="1",
+                    "mgs.book.author.email",
+                    self.metadata[0]["author"][0]["email"][0],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.age",
-                    value=str(self.metadata[0]["author"][0]["age"]),
-                    units="1",
+                    "mgs.book.author.age",
+                    str(self.metadata[0]["author"][0]["age"]),
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.publishing_date",
-                    value=self.metadata[0]["publishing_date"],
-                    units=None,
+                    "mgs.book.publishing_date",
+                    self.metadata[0]["publishing_date"],
+                    None,
                 ),
                 iRODSMeta(
-                    name="mgs.book.cover.colors",
-                    value=self.metadata[0]["cover"]["colors"][0],
-                    units="1",
+                    "mgs.book.cover.colors",
+                    self.metadata[0]["cover"]["colors"][0],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.cover.colors",
-                    value=self.metadata[0]["cover"]["colors"][1],
-                    units="1",
+                    "mgs.book.cover.colors",
+                    self.metadata[0]["cover"]["colors"][1],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.cover.type",
-                    value=self.metadata[0]["cover"]["type"],
-                    units="1",
+                    "mgs.book.cover.type",
+                    self.metadata[0]["cover"]["type"],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.publisher",
-                    value=self.metadata[0]["publisher"],
-                    units=None,
+                    "mgs.book.publisher",
+                    self.metadata[0]["publisher"],
+                    None,
                 ),
             ],
             [
                 iRODSMeta(
-                    name="mgs.book.title", value=self.metadata[1]["title"], units=None
+                    "mgs.book.title", self.metadata[1]["title"], None
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.name",
-                    value=self.metadata[1]["author"][0]["name"],
-                    units="1",
+                    "mgs.book.author.name",
+                    self.metadata[1]["author"][0]["name"],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.email",
-                    value=self.metadata[1]["author"][0]["email"][0],
-                    units="1",
+                    "mgs.book.author.email",
+                    self.metadata[1]["author"][0]["email"][0],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.age",
-                    value=str(self.metadata[1]["author"][0]["age"]),
-                    units="1",
+                    "mgs.book.author.age",
+                    str(self.metadata[1]["author"][0]["age"]),
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.name",
-                    value=self.metadata[1]["author"][1]["name"],
-                    units="2",
+                    "mgs.book.author.name",
+                    self.metadata[1]["author"][1]["name"],
+                    "2",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.email",
-                    value=self.metadata[1]["author"][1]["email"][0],
-                    units="2",
+                    "mgs.book.author.email",
+                    self.metadata[1]["author"][1]["email"][0],
+                    "2",
                 ),
                 iRODSMeta(
-                    name="mgs.book.author.age",
-                    value=str(self.metadata[1]["author"][1]["age"]),
-                    units="2",
+                    "mgs.book.author.age",
+                    str(self.metadata[1]["author"][1]["age"]),
+                    "2",
                 ),
                 iRODSMeta(
-                    name="mgs.book.publishing_date",
-                    value=self.metadata[1]["publishing_date"],
-                    units=None,
+                    "mgs.book.publishing_date",
+                    self.metadata[1]["publishing_date"],
+                    None,
                 ),
                 iRODSMeta(
-                    name="mgs.book.cover.type",
-                    value=self.metadata[1]["cover"]["type"],
-                    units="1",
+                    "mgs.book.cover.type",
+                    self.metadata[1]["cover"]["type"],
+                    "1",
                 ),
                 iRODSMeta(
-                    name="mgs.book.ebook", value=self.metadata[1]["ebook"], units=None
+                    "mgs.book.ebook", self.metadata[1]["ebook"], None
                 ),
                 iRODSMeta(
-                    name="mgs.book.publisher",
-                    value=self.schema.fields["publisher"].default,
-                    units=None,
+                    "mgs.book.publisher",
+                    self.schema.fields["publisher"].default,
+                    None,
                 ),
             ],
         ]
@@ -366,14 +366,14 @@ class TestApplyAndExtractSchema(unittest.TestCase):
         self.data_object.reset_mock()
         self.data_object.metadata.items.return_value = [
             iRODSMeta(
-                name="mgs.other_schema.title",
-                value="Title for other schema",
-                units=None,
+                "mgs.other_schema.title",
+                "Title for other schema",
+                None,
             ),
             iRODSMeta(
-                name="subject.length",
-                value="11",
-                units="cm",
+                "subject.length",
+                "11",
+                "cm",
             ),
         ]
 
