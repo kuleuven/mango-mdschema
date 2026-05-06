@@ -1,4 +1,5 @@
 """Module containing the Schema class."""
+
 from collections.abc import MutableMapping
 import json
 import logging
@@ -16,6 +17,7 @@ from .helpers import (
     flattened_to_mango_avu,
     flatten,
     unflatten,
+    mimic_atomic_operations,
 )
 from .fields import (
     TextField,
@@ -164,7 +166,9 @@ class Schema:
             else RepeatableField(field=field)
         )
 
-    def validate(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+    def validate(
+        self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True
+    ):
         """Validate a dictionary of metadata against the schema.
 
         Validation is a 2 step process: First the values in the metadata dictionary
@@ -211,7 +215,7 @@ class Schema:
         item: Union[iRODSCollection, iRODSDataObject],
         metadata: MutableMapping,
         convert: bool = True,
-        set_defaults: bool = True
+        set_defaults: bool = True,
     ):
         """Apply metadata to an iRODS data object or collection.
 
@@ -245,9 +249,14 @@ class Schema:
         existing_avus = [
             avu for avu in item.metadata.items() if avu.name.startswith(prefix)
         ]
-        item.metadata.apply_atomic_operations(
-            *[AVUOperation(operation="remove", avu=x) for x in existing_avus]
-        )
+        remove_operations = [
+            AVUOperation(operation="remove", avu=x) for x in existing_avus
+        ]
+        try:
+            item.metadata.apply_atomic_operations(*remove_operations)
+        except Exception:
+            mimic_atomic_operations(item, remove_operations)
+
         logger.info(
             "%s existing AVUs linked to the schema '%s' are removed.",
             len(existing_avus),
@@ -258,9 +267,11 @@ class Schema:
         avus.append(iRODSMeta(avu_version_name, self.version))
 
         # then apply atomic operations
-        item.metadata.apply_atomic_operations(
-            *[AVUOperation(operation="add", avu=x) for x in avus]
-        )
+        add_operations = [AVUOperation(operation="add", avu=x) for x in avus]
+        try:
+            item.metadata.apply_atomic_operations(*add_operations)
+        except Exception:
+            mimic_atomic_operations(item, add_operations)
 
     def extract(self, item: Union[iRODSCollection, iRODSDataObject]) -> MutableMapping:
         """Extract metadata from an iRODS data object or collection.
@@ -277,17 +288,15 @@ class Schema:
         """
         # get all AVUs linked to this metadata schema
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
-        avus = [
-            avu
-            for avu in item.metadata.items()
-            if avu.name.startswith(prefix)
-        ]
+        avus = [avu for avu in item.metadata.items() if avu.name.startswith(prefix)]
         # convert AVUs to a dictionary
         metadata = self.from_avus(avus)
         # convert metadata to their Python representation
         return self.convert(metadata)
 
-    def to_avus(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+    def to_avus(
+        self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True
+    ):
         """Generate AVUs from a dictionary of metadata.
 
         Before flattening, the metadata is first converted to the expected Python
