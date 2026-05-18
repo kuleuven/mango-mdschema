@@ -21,6 +21,7 @@ from .helpers import (
     flattened_to_mango_avu,
     flatten,
     unflatten,
+    mimic_atomic_operations,
 )
 from .fields import (
     TextField,
@@ -281,9 +282,14 @@ class Schema:
         existing_avus = [
             avu for avu in item.metadata.items() if avu.name.startswith(prefix)
         ]
-        item.metadata.apply_atomic_operations(
-            *[AVUOperation(operation="remove", avu=x) for x in existing_avus]
-        )
+        remove_operations = [
+            AVUOperation(operation="remove", avu=x) for x in existing_avus
+        ]
+        try:
+            item.metadata.apply_atomic_operations(*remove_operations)
+        except Exception:
+            mimic_atomic_operations(item, remove_operations)
+
         logger.info(
             "%s existing AVUs linked to the schema '%s' are removed.",
             len(existing_avus),
@@ -294,9 +300,11 @@ class Schema:
         avus.append(iRODSMeta(avu_version_name, self.version))
 
         # then apply atomic operations
-        item.metadata.apply_atomic_operations(
-            *[AVUOperation(operation="add", avu=x) for x in avus]
-        )
+        add_operations = [AVUOperation(operation="add", avu=x) for x in avus]
+        try:
+            item.metadata.apply_atomic_operations(*add_operations)
+        except Exception:
+            mimic_atomic_operations(item, add_operations)
 
     def extract(self, item: Union[iRODSCollection, iRODSDataObject]) -> MutableMapping:
         """Extract metadata from an iRODS data object or collection.
