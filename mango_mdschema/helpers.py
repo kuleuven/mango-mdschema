@@ -260,3 +260,18 @@ def is_number(value: str) -> bool:
         return True
     except ValueError:
         return False
+
+
+from irods.data_object import iRODSDataObject
+from irods.collection import iRODSCollection
+from irods.meta import AVUOperation
+
+
+def mimic_atomic_operations(
+    catalog_item: iRODSDataObject | iRODSCollection, avu_operations: list[AVUOperation]
+):
+    for avu_operation in avu_operations:
+        if avu_operation.operation == "remove":
+            catalog_item.metadata.remove(avu_operation.avu)
+        elif avu_operation.operation == "add":
+            catalog_item.metadata.add(avu_operation.avu)
