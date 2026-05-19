@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import pathlib
+import os
 import warnings
 from typing import Union, List
 
@@ -13,6 +14,8 @@ from irods.collection import iRODSCollection
 from irods.exception import CollectionDoesNotExist
 from irods.session import iRODSSession
 from irods.meta import AVUOperation, iRODSMeta
+from irods.models import Collection, DataObject, DataObjectMeta
+from irods.column import Criterion
 
 from .constants import NAME_DELIMITER
 from .helpers import (
@@ -45,22 +48,29 @@ def get_mango_schema(
     realm: str,
     schema_name: str,
 ) -> iRODSDataObject:
+
     schemas_path = str(
         pathlib.Path("/", session.zone, "mango", realm, "schemas", schema_name)
     )
     try:
-        schemas_collection = session.collections.get(schemas_path)
+        session.collections.get(schemas_path)
     except CollectionDoesNotExist:
         raise ValueError(f"No schemas found in ManGO for {schema_name} in {realm}!")
     schema = None
-    for _schema in schemas_collection.data_objects:
-        if _schema.metadata.get_one("mg.lifecycle_status").value == "published":
-            schema = _schema
-            break
-    if schema is None:
+    schema_query = (
+        session.query(Collection.name, DataObject.name)
+        .filter(Criterion("=", Collection.name, schemas_path))
+        .filter(Criterion("=", DataObjectMeta.name, "mg.lifecycle_status"))
+        .filter(Criterion("=", DataObjectMeta.value, "published"))
+        .all()
+    )
+    if len(schema_query) == 0:
         raise ValueError(f"No published schemas found for {schema_name} in {realm}!")
     logging.info(f"Found the following schema: {schema_name}")
-    return schema
+    schema_path = os.path.join(
+        schema_query[0][Collection.name], schema_query[0][DataObject.name]
+    )
+    return session.data_objects.get(schema_path)
 
 
 class Schema:
