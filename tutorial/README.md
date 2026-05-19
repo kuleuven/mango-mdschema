@@ -43,11 +43,22 @@ from pprint import pprint
 from mango_mdschema import Schema, ValidationError, ConversionError
 ```
 
-Create a schema by providing the path to the file. (In the future, `pathlib.Path`
-objects will also be accepted). See below for more information about this class.
+Create a schema by providing the path to the file as a string or a `pathlib.Path` instance.
+See below for more information about this class.
 
 ```python
 my_schema = Schema('book-v2.0.0-published.json')
+```
+
+You can also use a schema from ManGO (saved via the ManGO Portal in iRODS itself) in the following way:
+
+```python
+from mango_mdschema.schema import get_mango_schema
+# irods_session is an iRODS Session you have opened
+# realm is the name of your ManGO Project
+# schema_name is the name of the schema
+schema_object = get_mango_schema(irods_session, realm, schema_name)
+my_schema = Schema(schema_object)
 ```
 
 Provide the metadata as a dictionary with not-namespaced attribute names
