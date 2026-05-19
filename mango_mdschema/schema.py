@@ -56,7 +56,6 @@ def get_mango_schema(
         session.collections.get(schemas_path)
     except CollectionDoesNotExist:
         raise ValueError(f"No schemas found in ManGO for {schema_name} in {realm}!")
-    schema = None
     schema_query = (
         session.query(Collection.name, DataObject.name)
         .filter(Criterion("=", Collection.name, schemas_path))
