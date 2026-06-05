@@ -121,6 +121,12 @@ def unflatten(items, delim="."):
     return root
 
 
+def remove_Trailing_zero(string):
+    while string != string.removesuffix(".0"):
+        string = string.removesuffix(".0")
+    return string
+
+
 def flattened_to_mango_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
     """ "Convert a normalized flattened key/value pair yielded by the `flatten`
     generator to a iRODSMeta object with name, value and units accoording to
@@ -162,7 +168,7 @@ def flattened_to_mango_avu(flattened: tuple, prefix: str = None) -> iRODSMeta:
         # need to have index 1 in the units string.
         indices = ["1" if i == "0" else i for i in indices]
     name = re.sub(r"\[\d+\]", "", key)  # remove list indices from the normalized key
-    units = ".".join(indices).rstrip(".0")  # remove trailing zero indices
+    units = remove_Trailing_zero(".".join(indices))  # remove trailing zero indices
     return iRODSMeta(
         f"{prefix}.{name}" if prefix else name,
         value,
