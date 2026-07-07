@@ -1,13 +1,21 @@
 """Module containing the Schema class."""
+
 from collections.abc import MutableMapping
+import io
 import json
 import logging
+import pathlib
+import os
 import warnings
 from typing import Union, List
 
 from irods.data_object import iRODSDataObject
 from irods.collection import iRODSCollection
+from irods.exception import CollectionDoesNotExist
+from irods.session import iRODSSession
 from irods.meta import AVUOperation, iRODSMeta
+from irods.models import Collection, DataObject, DataObjectMeta
+from irods.column import Criterion
 
 from .constants import NAME_DELIMITER
 from .helpers import (
@@ -16,6 +24,7 @@ from .helpers import (
     flattened_to_mango_avu,
     flatten,
     unflatten,
+    mimic_atomic_operations,
 )
 from .fields import (
     TextField,
@@ -32,6 +41,35 @@ from .fields import (
 )
 
 logger = logging.getLogger("mango_mdschema")
+
+
+def get_mango_schema(
+    session: iRODSSession,
+    realm: str,
+    schema_name: str,
+) -> iRODSDataObject:
+
+    schemas_path = str(
+        pathlib.Path("/", session.zone, "mango", realm, "schemas", schema_name)
+    )
+    try:
+        session.collections.get(schemas_path)
+    except CollectionDoesNotExist:
+        raise ValueError(f"No schemas found in ManGO for {schema_name} in {realm}!")
+    schema_query = (
+        session.query(Collection.name, DataObject.name)
+        .filter(Criterion("=", Collection.name, schemas_path))
+        .filter(Criterion("=", DataObjectMeta.name, "mg.lifecycle_status"))
+        .filter(Criterion("=", DataObjectMeta.value, "published"))
+        .all()
+    )
+    if len(schema_query) == 0:
+        raise ValueError(f"No published schemas found for {schema_name} in {realm}!")
+    logging.info(f"Found the following schema: {schema_name}")
+    schema_path = os.path.join(
+        schema_query[0][Collection.name], schema_query[0][DataObject.name]
+    )
+    return session.data_objects.get(schema_path)
 
 
 class Schema:
@@ -64,7 +102,7 @@ class Schema:
         "object": CompositeField,
     }
 
-    def __init__(self, path: str, prefix: str = "mgs"):
+    def __init__(self, path: str | pathlib.Path | iRODSDataObject, prefix: str = "mgs"):
         """Init a Schema object from a JSON file.
 
         Args:
@@ -79,16 +117,22 @@ class Schema:
             ValueError: When the schema is not published.
         """
         # TODO allow the path to be a pathlib.Path or io.TextIOWrapper
+        if isinstance(path, str):
+            f = open(path, "r", encoding="utf-8")
+        elif isinstance(path, pathlib.Path) or isinstance(path, iRODSDataObject):
+            f = path.open("r")
+        else:
+            raise TypeError("'path' must be a string, a pathlib path or a data object")
+        try:
+            schema = json.load(f)
+        except IOError as err:
+            raise IOError(
+                "There was an error opening or loading your schema from the requested path."
+            ) from err
+        except json.JSONDecodeError as err:
+            raise IOError("There was an error decoding the JSON schema.") from err
+        f.close()
 
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                schema = json.load(f)
-            except IOError as err:
-                raise IOError(
-                    "There was an error opening or loading your schema from the requested path."
-                ) from err
-            except json.JSONDecodeError as err:
-                raise IOError("There was an error decoding the JSON schema.") from err
         # check that all necessary fields are present
         required_fields = ["schema_name", "version", "status", "properties"]
         if sum(x not in schema for x in required_fields) > 0:
@@ -164,7 +208,9 @@ class Schema:
             else RepeatableField(field=field)
         )
 
-    def validate(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+    def validate(
+        self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True
+    ):
         """Validate a dictionary of metadata against the schema.
 
         Validation is a 2 step process: First the values in the metadata dictionary
@@ -211,7 +257,7 @@ class Schema:
         item: Union[iRODSCollection, iRODSDataObject],
         metadata: MutableMapping,
         convert: bool = True,
-        set_defaults: bool = True
+        set_defaults: bool = True,
     ):
         """Apply metadata to an iRODS data object or collection.
 
@@ -245,9 +291,14 @@ class Schema:
         existing_avus = [
             avu for avu in item.metadata.items() if avu.name.startswith(prefix)
         ]
-        item.metadata.apply_atomic_operations(
-            *[AVUOperation(operation="remove", avu=x) for x in existing_avus]
-        )
+        remove_operations = [
+            AVUOperation(operation="remove", avu=x) for x in existing_avus
+        ]
+        try:
+            item.metadata.apply_atomic_operations(*remove_operations)
+        except Exception:
+            mimic_atomic_operations(item, remove_operations)
+
         logger.info(
             "%s existing AVUs linked to the schema '%s' are removed.",
             len(existing_avus),
@@ -258,9 +309,11 @@ class Schema:
         avus.append(iRODSMeta(avu_version_name, self.version))
 
         # then apply atomic operations
-        item.metadata.apply_atomic_operations(
-            *[AVUOperation(operation="add", avu=x) for x in avus]
-        )
+        add_operations = [AVUOperation(operation="add", avu=x) for x in avus]
+        try:
+            item.metadata.apply_atomic_operations(*add_operations)
+        except Exception:
+            mimic_atomic_operations(item, add_operations)
 
     def extract(self, item: Union[iRODSCollection, iRODSDataObject]) -> MutableMapping:
         """Extract metadata from an iRODS data object or collection.
@@ -277,17 +330,15 @@ class Schema:
         """
         # get all AVUs linked to this metadata schema
         prefix = NAME_DELIMITER.join([self.prefix, self.name])
-        avus = [
-            avu
-            for avu in item.metadata.items()
-            if avu.name.startswith(prefix)
-        ]
+        avus = [avu for avu in item.metadata.items() if avu.name.startswith(prefix)]
         # convert AVUs to a dictionary
         metadata = self.from_avus(avus)
         # convert metadata to their Python representation
         return self.convert(metadata)
 
-    def to_avus(self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True):
+    def to_avus(
+        self, metadata: MutableMapping, convert: bool = True, set_defaults: bool = True
+    ):
         """Generate AVUs from a dictionary of metadata.
 
         Before flattening, the metadata is first converted to the expected Python

@@ -7,8 +7,8 @@ dynamic = ["dependencies", "optional-dependencies"]
 name = "mango-mdschema"
 description = "ManGO metadata schemas on iRODS"
 readme = "README.md"
-requires-python = ">=3.8"
-version = "1.0.3"
+requires-python = ">=3.10"
+version = "1.1.0"
 license = {file = "LICENSE"}
 authors = [
     { name = "Mariana Montes", email = "mariana.montes@kuleuven.be" },
@@ -30,3 +30,9 @@ disable = ["too-many-arguments"]
 
 [tool.pylint.reports]
 output-format = ["colorized"]
+
+[dependency-groups]
+dev = [
+    "nbconvert>=7.16.6",
+    "nbformat>=5.10.4",
+]
